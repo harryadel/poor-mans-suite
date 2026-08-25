@@ -8,9 +8,9 @@ import { renderDiff } from '../../core/utils/misc.js';
 import { escapeHtml } from '../../core/utils/dom.js';
 import { requestReplayPermission } from '../../network/permissions.js';
 import {
-    getMatchedResponseMarkers,
+    getMatchedResponseMatchers,
     highlightResponseMatches,
-    parseResponseMarkers
+    normalizeResponseMatchers
 } from './response-matches.js';
 
 export function setupBulkReplay() {
@@ -25,32 +25,126 @@ export function setupBulkReplay() {
     const bulkStopBtn = document.getElementById('bulk-stop-btn');
     const bulkCloseBtn = document.getElementById('bulk-close-btn');
     const verticalResizeHandle = document.querySelector('.vertical-resize-handle');
-    const responseMatchMarkersInput = document.getElementById('response-match-markers');
+    const responseMatchersContainer = document.getElementById('response-matchers');
+    const addResponseMatcherBtn = document.getElementById('add-response-matcher');
     const responseMatchCaseSensitiveInput = document.getElementById('response-match-case-sensitive');
 
-    if (responseMatchMarkersInput) {
-        responseMatchMarkersInput.value = state.responseMatchMarkers.join(String.fromCharCode(10));
-    }
-    if (responseMatchCaseSensitiveInput) {
-        responseMatchCaseSensitiveInput.checked = state.responseMatchCaseSensitive;
+    function readResponseMatchers() {
+        if (!responseMatchersContainer) return [];
+
+        return normalizeResponseMatchers(
+            Array.from(responseMatchersContainer.querySelectorAll('.response-matcher-row')).map(row => ({
+                text: row.querySelector('.response-matcher-text')?.value || '',
+                mode: row.querySelector('.response-matcher-mode')?.value || 'partial'
+            }))
+        );
     }
 
-    function renderResponseMatches(cell, markers) {
+    function showEmptyResponseMatchers() {
+        if (!responseMatchersContainer || responseMatchersContainer.children.length > 0) return;
+
+        const empty = document.createElement('div');
+        empty.className = 'response-matcher-empty';
+        empty.textContent = 'No response matchers configured.';
+        responseMatchersContainer.appendChild(empty);
+    }
+
+    function appendResponseMatcherRow(matcher = { text: '', mode: 'partial' }, focus = false) {
+        if (!responseMatchersContainer) return;
+
+        responseMatchersContainer.querySelector('.response-matcher-empty')?.remove();
+
+        const row = document.createElement('div');
+        row.className = 'response-matcher-row';
+
+        const textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.className = 'form-control response-matcher-text';
+        textInput.placeholder = 'Response text';
+        textInput.value = matcher.text || '';
+        textInput.setAttribute('aria-label', 'Response matcher text');
+
+        const modeSelect = document.createElement('select');
+        modeSelect.className = 'form-control response-matcher-mode';
+        modeSelect.setAttribute('aria-label', 'Response matcher mode');
+        modeSelect.innerHTML = `
+            <option value="partial">Contains</option>
+            <option value="whole">Whole response</option>
+        `;
+        modeSelect.value = matcher.mode === 'whole' ? 'whole' : 'partial';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'response-matcher-remove';
+        removeBtn.title = 'Remove matcher';
+        removeBtn.setAttribute('aria-label', 'Remove response matcher');
+        removeBtn.textContent = '×';
+
+        const syncState = () => {
+            state.responseMatchers = readResponseMatchers();
+        };
+        textInput.addEventListener('input', syncState);
+        modeSelect.addEventListener('change', syncState);
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+            syncState();
+            showEmptyResponseMatchers();
+        });
+
+        row.append(textInput, modeSelect, removeBtn);
+        responseMatchersContainer.appendChild(row);
+        if (focus) textInput.focus();
+    }
+
+    function renderResponseMatcherConfig(matchers = state.responseMatchers) {
+        if (!responseMatchersContainer) return;
+
+        const normalizedMatchers = normalizeResponseMatchers(matchers);
+        state.responseMatchers = normalizedMatchers;
+        responseMatchersContainer.replaceChildren();
+        normalizedMatchers.forEach(matcher => appendResponseMatcherRow(matcher));
+        showEmptyResponseMatchers();
+    }
+
+    function addMarkedResponseMatcher(text) {
+        const matchers = normalizeResponseMatchers([
+            ...readResponseMatchers(),
+            { text, mode: 'partial' }
+        ]);
+        renderResponseMatcherConfig(matchers);
+    }
+
+    renderResponseMatcherConfig();
+
+    addResponseMatcherBtn?.addEventListener('click', () => {
+        state.responseMatchers = readResponseMatchers();
+        appendResponseMatcherRow({ text: '', mode: 'partial' }, true);
+    });
+
+    if (responseMatchCaseSensitiveInput) {
+        responseMatchCaseSensitiveInput.checked = state.responseMatchCaseSensitive;
+        responseMatchCaseSensitiveInput.addEventListener('change', () => {
+            state.responseMatchCaseSensitive = responseMatchCaseSensitiveInput.checked;
+        });
+    }
+
+    function renderResponseMatches(cell, matchers) {
         if (!cell) return;
 
         cell.replaceChildren();
-        cell.classList.toggle('empty', markers.length === 0);
+        cell.classList.toggle('empty', matchers.length === 0);
 
-        if (markers.length === 0) {
+        if (matchers.length === 0) {
             cell.textContent = '—';
             return;
         }
 
-        markers.forEach(marker => {
+        matchers.forEach(matcher => {
             const badge = document.createElement('span');
             badge.className = 'response-match-badge';
-            badge.textContent = marker;
-            badge.title = marker;
+            badge.dataset.mode = matcher.mode;
+            badge.textContent = matcher.text;
+            badge.title = `${matcher.mode === 'whole' ? 'Whole response' : 'Contains'}: ${matcher.text}`;
             cell.appendChild(badge);
         });
     }
@@ -308,17 +402,22 @@ export function setupBulkReplay() {
         markPayloadItem.addEventListener('click', () => {
             // Use the selection information stored by `setupContextMenu` in `ui-utils.js`
             const targetType = contextMenu.dataset.target;
-            const editor = targetType === 'request' ? elements.rawRequestInput : elements.rawResponseDisplay;
-
-            if (!editor) {
-                contextMenu.classList.remove('show');
-                return;
-            }
-
             const rawSelected = contextMenu.dataset.selectedText || '';
             const selectedText = rawSelected.trim();
 
             if (!selectedText) {
+                contextMenu.classList.remove('show');
+                return;
+            }
+
+            if (targetType === 'response') {
+                addMarkedResponseMatcher(selectedText);
+                contextMenu.classList.remove('show');
+                return;
+            }
+
+            const editor = elements.rawRequestInput;
+            if (!editor) {
                 contextMenu.classList.remove('show');
                 return;
             }
@@ -385,10 +484,10 @@ export function setupBulkReplay() {
 
     async function startBulkReplay() {
         const template = elements.rawRequestInput.innerText;
-        const responseMatchMarkers = parseResponseMarkers(responseMatchMarkersInput?.value || '');
+        const responseMatchers = readResponseMatchers();
         const responseMatchCaseSensitive = responseMatchCaseSensitiveInput?.checked ?? true;
 
-        state.responseMatchMarkers = responseMatchMarkers;
+        state.responseMatchers = responseMatchers;
         state.responseMatchCaseSensitive = responseMatchCaseSensitive;
 
         if (state.currentAttackType === 'battering-ram') {
@@ -545,7 +644,11 @@ export function setupBulkReplay() {
                             elements.rawResponseDisplay.innerHTML = highlightHTTP(rawResponse);
                         }
 
-                        highlightResponseMatches(elements.rawResponseDisplay, result.responseMatches || [], {
+                        const highlightMatchers = (result.responseMatches || []).map(matcher => ({
+                            ...matcher,
+                            mode: 'partial'
+                        }));
+                        highlightResponseMatches(elements.rawResponseDisplay, highlightMatchers, {
                             caseSensitive: result.responseMatchCaseSensitive
                         });
                     }
@@ -622,7 +725,7 @@ export function setupBulkReplay() {
                 const responseSize = new TextEncoder().encode(responseBody).length;
                 const duration = `${(endTime - startTime).toFixed(0)}ms`;
 
-                const responseMatches = getMatchedResponseMarkers(responseBody, responseMatchMarkers, {
+                const responseMatches = getMatchedResponseMatchers(responseBody, responseMatchers, {
                     caseSensitive: responseMatchCaseSensitive
                 });
 

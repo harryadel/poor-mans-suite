@@ -2,9 +2,8 @@
 export const bulkReplayState = {
     positionConfigs: [],
     currentAttackType: 'sniper',
-    responseMatchMarkers: [],
+    responseMatchers: [],
     responseMatchCaseSensitive: true,
     shouldStopBulk: false,
     shouldPauseBulk: false
 };
-

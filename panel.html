@@ -613,15 +613,17 @@
 
                 <!-- Response Matching -->
                 <div class="form-group response-match-config">
-                    <label for="response-match-markers">Response Match Markers</label>
-                    <textarea id="response-match-markers" class="form-control" rows="4"
-                        placeholder="Invalid username&#10;Invalid username and password"></textarea>
+                    <div class="response-match-heading">
+                        <label>Response Matchers</label>
+                        <button type="button" id="add-response-matcher" class="secondary-btn">Add Matcher</button>
+                    </div>
+                    <div id="response-matchers" class="response-matcher-list"></div>
                     <label class="checkbox-label response-match-case-option">
                         <input type="checkbox" id="response-match-case-sensitive" checked>
                         Case sensitive
                     </label>
-                    <p class="help-text">One phrase per line. Matches appear in the results table and are highlighted
-                        when you open a response. Longer overlapping phrases take priority.</p>
+                    <p class="help-text">Contains matches text anywhere in the response body. Whole response requires
+                        the complete body to equal the matcher. Longer overlapping phrases take priority.</p>
                 </div>
 
                 <!-- Payload Positions -->
