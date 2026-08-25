@@ -513,6 +513,7 @@
                                     <th>Status</th>
                                     <th>Size</th>
                                     <th>Time</th>
+                                    <th>Matches</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -597,6 +598,19 @@
                     </select>
                     <p class="help-text" id="attack-type-help">Sniper: Tests each position independently with its own
                         payloads.</p>
+                </div>
+
+                <!-- Response Matching -->
+                <div class="form-group response-match-config">
+                    <label for="response-match-markers">Response Match Markers</label>
+                    <textarea id="response-match-markers" class="form-control" rows="4"
+                        placeholder="Invalid username&#10;Invalid username and password"></textarea>
+                    <label class="checkbox-label response-match-case-option">
+                        <input type="checkbox" id="response-match-case-sensitive" checked>
+                        Case sensitive
+                    </label>
+                    <p class="help-text">One phrase per line. Matches appear in the results table and are highlighted
+                        when you open a response. Longer overlapping phrases take priority.</p>
                 </div>
 
                 <!-- Payload Positions -->

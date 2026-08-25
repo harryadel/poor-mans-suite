@@ -1462,6 +1462,55 @@ body.theme-transitioning img {
 }
 
 
+.response-match-config textarea {
+    min-height: 88px;
+    resize: vertical;
+}
+
+.response-match-case-option {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--text-color) !important;
+    cursor: pointer;
+}
+
+.response-match-case-option input {
+    margin: 0;
+}
+
+.matches-cell {
+    min-width: 140px;
+}
+
+.matches-cell.empty {
+    color: #5f6368;
+}
+
+.response-match-badge {
+    display: inline-block;
+    max-width: 220px;
+    margin: 1px 4px 1px 0;
+    padding: 2px 6px;
+    overflow: hidden;
+    border: 1px solid rgba(251, 188, 4, 0.55);
+    border-radius: 999px;
+    background: rgba(251, 188, 4, 0.16);
+    color: var(--text-color);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.response-match-highlight {
+    padding: 0 1px;
+    border-radius: 2px;
+    background: #fbbc04;
+    color: #202124;
+    box-shadow: 0 0 0 1px rgba(251, 188, 4, 0.35);
+}
+
 /* Table Styles */
 .table-container {
     flex: 1;
