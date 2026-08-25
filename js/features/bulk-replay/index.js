@@ -7,6 +7,11 @@ import { highlightHTTP } from '../../core/utils/network.js';
 import { renderDiff } from '../../core/utils/misc.js';
 import { escapeHtml } from '../../core/utils/dom.js';
 import { requestReplayPermission } from '../../network/permissions.js';
+import {
+    getMatchedResponseMarkers,
+    highlightResponseMatches,
+    parseResponseMarkers
+} from './response-matches.js';
 
 export function setupBulkReplay() {
     const bulkReplayBtn = document.getElementById('bulk-replay-btn');
@@ -20,6 +25,35 @@ export function setupBulkReplay() {
     const bulkStopBtn = document.getElementById('bulk-stop-btn');
     const bulkCloseBtn = document.getElementById('bulk-close-btn');
     const verticalResizeHandle = document.querySelector('.vertical-resize-handle');
+    const responseMatchMarkersInput = document.getElementById('response-match-markers');
+    const responseMatchCaseSensitiveInput = document.getElementById('response-match-case-sensitive');
+
+    if (responseMatchMarkersInput) {
+        responseMatchMarkersInput.value = state.responseMatchMarkers.join(String.fromCharCode(10));
+    }
+    if (responseMatchCaseSensitiveInput) {
+        responseMatchCaseSensitiveInput.checked = state.responseMatchCaseSensitive;
+    }
+
+    function renderResponseMatches(cell, markers) {
+        if (!cell) return;
+
+        cell.replaceChildren();
+        cell.classList.toggle('empty', markers.length === 0);
+
+        if (markers.length === 0) {
+            cell.textContent = '—';
+            return;
+        }
+
+        markers.forEach(marker => {
+            const badge = document.createElement('span');
+            badge.className = 'response-match-badge';
+            badge.textContent = marker;
+            badge.title = marker;
+            cell.appendChild(badge);
+        });
+    }
 
     // We use elements.rawRequestInput from ui.js
 
@@ -351,6 +385,11 @@ export function setupBulkReplay() {
 
     async function startBulkReplay() {
         const template = elements.rawRequestInput.innerText;
+        const responseMatchMarkers = parseResponseMarkers(responseMatchMarkersInput?.value || '');
+        const responseMatchCaseSensitive = responseMatchCaseSensitiveInput?.checked ?? true;
+
+        state.responseMatchMarkers = responseMatchMarkers;
+        state.responseMatchCaseSensitive = responseMatchCaseSensitive;
 
         if (state.currentAttackType === 'battering-ram') {
             const container = document.getElementById('battering-ram-config');
@@ -460,6 +499,7 @@ export function setupBulkReplay() {
                 <td class="status-cell">Sending...</td>
                 <td class="size-cell">-</td>
                 <td class="time-cell">-</td>
+                <td class="matches-cell empty">—</td>
             `;
             bulkResultsTable.appendChild(row);
             row.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -504,6 +544,10 @@ export function setupBulkReplay() {
                         } else {
                             elements.rawResponseDisplay.innerHTML = highlightHTTP(rawResponse);
                         }
+
+                        highlightResponseMatches(elements.rawResponseDisplay, result.responseMatches || [], {
+                            caseSensitive: result.responseMatchCaseSensitive
+                        });
                     }
                 }
             });
@@ -578,6 +622,10 @@ export function setupBulkReplay() {
                 const responseSize = new TextEncoder().encode(responseBody).length;
                 const duration = `${(endTime - startTime).toFixed(0)}ms`;
 
+                const responseMatches = getMatchedResponseMarkers(responseBody, responseMatchMarkers, {
+                    caseSensitive: responseMatchCaseSensitive
+                });
+
                 bulkResults[i] = {
                     requestContent: requestContent,
                     status: response.status,
@@ -586,12 +634,16 @@ export function setupBulkReplay() {
                     responseBody: responseBody,
                     size: responseSize,
                     duration: duration,
+                    responseMatches,
+                    responseMatchCaseSensitive,
                     error: null
                 };
 
                 row.querySelector('.status-cell').textContent = `${response.status} ${response.statusText}`;
                 row.querySelector('.size-cell').textContent = formatBytes(responseSize);
                 row.querySelector('.time-cell').textContent = duration;
+                renderResponseMatches(row.querySelector('.matches-cell'), responseMatches);
+                row.classList.toggle('has-response-match', responseMatches.length > 0);
 
             } catch (error) {
                 const endTime = performance.now();
@@ -605,6 +657,8 @@ export function setupBulkReplay() {
                     responseBody: '',
                     size: 0,
                     duration: `${(endTime - startTime).toFixed(0)}ms`,
+                    responseMatches: [],
+                    responseMatchCaseSensitive,
                     error: error.message
                 };
 
