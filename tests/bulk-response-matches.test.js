@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
     findResponseMatches,
     getMatchedResponseMarkers,
+    getMatchedResponseMatchers,
     highlightResponseMatches,
+    normalizeResponseMatchers,
     parseResponseMarkers
 } from '../js/features/bulk-replay/response-matches.js';
 
@@ -31,6 +33,34 @@ describe('Bulk Replay response markers', () => {
 
         expect(findResponseMatches('invalid username', markers)).toHaveLength(0);
         expect(findResponseMatches('invalid username', markers, { caseSensitive: false })).toHaveLength(1);
+    });
+
+    it('normalizes matcher modes and removes exact duplicates', () => {
+        expect(normalizeResponseMatchers([
+            { text: ' Invalid username ', mode: 'partial' },
+            { text: 'Invalid username', mode: 'partial' },
+            { text: 'Invalid username', mode: 'whole' }
+        ])).toEqual([
+            { text: 'Invalid username', mode: 'partial' },
+            { text: 'Invalid username', mode: 'whole' }
+        ]);
+    });
+
+    it('supports contains and whole-response matching per matcher', () => {
+        const contains = [{ text: 'Invalid username', mode: 'partial' }];
+        const whole = [{ text: 'Invalid username', mode: 'whole' }];
+
+        expect(getMatchedResponseMatchers('Invalid username and password', contains)).toEqual(contains);
+        expect(getMatchedResponseMatchers('Invalid username and password', whole)).toEqual([]);
+        expect(getMatchedResponseMatchers('Invalid username', whole)).toEqual(whole);
+    });
+
+    it('applies case sensitivity and exact whitespace to whole-response matchers', () => {
+        const whole = [{ text: 'Invalid username', mode: 'whole' }];
+
+        expect(getMatchedResponseMatchers('invalid username', whole)).toEqual([]);
+        expect(getMatchedResponseMatchers('invalid username', whole, { caseSensitive: false })).toEqual(whole);
+        expect(getMatchedResponseMatchers('Invalid username\n', whole)).toEqual([]);
     });
 
     it('highlights matches without replacing existing response markup', () => {

@@ -37,7 +37,8 @@ describe('Bulk Replay response-marker UI', () => {
                 <div class="payload-options-simple-list"><textarea class="payload-list-input"></textarea></div>
                 <div class="payload-options-numbers"></div>
             </div>
-            <textarea id="response-match-markers"></textarea>
+            <button id="add-response-matcher"></button>
+            <div id="response-matchers"></div>
             <input id="response-match-case-sensitive" type="checkbox" checked>
             <input id="use-https" type="checkbox" checked>
             <div class="main-content"></div>
@@ -60,7 +61,7 @@ describe('Bulk Replay response-marker UI', () => {
 
         state.positionConfigs = [];
         state.currentAttackType = 'sniper';
-        state.responseMatchMarkers = [];
+        state.responseMatchers = [];
         state.responseMatchCaseSensitive = true;
         state.shouldStopBulk = false;
         state.shouldPauseBulk = false;
@@ -74,15 +75,22 @@ describe('Bulk Replay response-marker UI', () => {
         });
     });
 
+    function addResponseMatcher(text, mode = 'partial') {
+        document.getElementById('add-response-matcher').click();
+        const rows = document.querySelectorAll('.response-matcher-row');
+        const row = rows[rows.length - 1];
+        row.querySelector('.response-matcher-text').value = text;
+        row.querySelector('.response-matcher-mode').value = mode;
+        return row;
+    }
+
     it('shows only the longest overlapping marker and highlights it in the opened response', async () => {
         setupBulkReplay();
 
         document.getElementById('bulk-replay-btn').click();
         document.querySelector('.position-card .payload-list-input').value = 'alice';
-        document.getElementById('response-match-markers').value = [
-            'Invalid username',
-            'Invalid username and password'
-        ].join('\n');
+        addResponseMatcher('Invalid username');
+        addResponseMatcher('Invalid username and password');
 
         document.getElementById('start-attack-btn').click();
 
@@ -97,5 +105,44 @@ describe('Bulk Replay response-marker UI', () => {
 
         expect(uiMocks.elements.rawResponseDisplay.querySelectorAll('mark.response-match-highlight')).toHaveLength(1);
         expect(uiMocks.elements.rawResponseDisplay.querySelector('mark')?.textContent).toBe('Invalid username and password');
+    });
+
+    it('uses each matcher\'s contains or whole-response mode', async () => {
+        globalThis.fetch.mockResolvedValue({
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers(),
+            text: vi.fn().mockResolvedValue('Invalid username and password')
+        });
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice';
+        addResponseMatcher('Invalid username', 'whole');
+        addResponseMatcher('username and password', 'partial');
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelectorAll('.response-match-badge')).toHaveLength(1);
+        });
+
+        expect(document.querySelector('.response-match-badge')?.textContent).toBe('username and password');
+        expect(document.querySelector('.response-match-badge')?.dataset.mode).toBe('partial');
+    });
+
+    it('adds marked response text to the matcher configuration without changing the response', () => {
+        setupBulkReplay();
+        uiMocks.elements.rawResponseDisplay.textContent = 'Invalid username and password';
+
+        const contextMenu = document.getElementById('context-menu');
+        contextMenu.dataset.target = 'response';
+        contextMenu.dataset.selectedText = 'Invalid username';
+        contextMenu.querySelector('[data-action="mark-payload"]').click();
+
+        const row = document.querySelector('.response-matcher-row');
+        expect(row.querySelector('.response-matcher-text').value).toBe('Invalid username');
+        expect(row.querySelector('.response-matcher-mode').value).toBe('partial');
+        expect(state.responseMatchers).toEqual([{ text: 'Invalid username', mode: 'partial' }]);
+        expect(uiMocks.elements.rawResponseDisplay.textContent).toBe('Invalid username and password');
     });
 });

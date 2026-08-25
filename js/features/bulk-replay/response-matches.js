@@ -11,20 +11,57 @@ export function parseResponseMarkers(value) {
         });
 }
 
-export function findResponseMatches(text, markers, { caseSensitive = true } = {}) {
+export function normalizeResponseMatchers(matchers) {
+    if (!Array.isArray(matchers)) return [];
+
+    const seen = new Set();
+    return matchers
+        .map(matcher => {
+            const text = String(typeof matcher === 'string' ? matcher : matcher?.text || '').trim();
+            const mode = typeof matcher === 'object' && matcher?.mode === 'whole' ? 'whole' : 'partial';
+            return { text, mode };
+        })
+        .filter(matcher => {
+            const key = `${matcher.mode}\u0000${matcher.text}`;
+            if (!matcher.text || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+export function findResponseMatches(text, matchers, { caseSensitive = true } = {}) {
     const source = String(text || '');
-    if (!source || !Array.isArray(markers) || markers.length === 0) return [];
+    const normalizedMatchers = normalizeResponseMatchers(matchers);
+    if (!source || normalizedMatchers.length === 0) return [];
 
     const haystack = caseSensitive ? source : source.toLocaleLowerCase();
     const occupied = new Uint8Array(source.length);
     const matches = [];
-    const rules = markers
-        .map((marker, index) => ({ marker: String(marker), index }))
-        .filter(rule => rule.marker.length > 0)
-        .sort((a, b) => b.marker.length - a.marker.length || a.index - b.index);
+    const rules = normalizedMatchers
+        .map((matcher, index) => ({ ...matcher, index }))
+        .sort((a, b) =>
+            b.text.length - a.text.length ||
+            (a.mode === b.mode ? 0 : a.mode === 'whole' ? -1 : 1) ||
+            a.index - b.index
+        );
 
     rules.forEach(rule => {
-        const needle = caseSensitive ? rule.marker : rule.marker.toLocaleLowerCase();
+        const needle = caseSensitive ? rule.text : rule.text.toLocaleLowerCase();
+
+        if (rule.mode === 'whole') {
+            if (haystack === needle && !occupied.some(Boolean)) {
+                occupied.fill(1);
+                matches.push({
+                    marker: rule.text,
+                    mode: rule.mode,
+                    start: 0,
+                    end: source.length,
+                    markerIndex: rule.index
+                });
+            }
+            return;
+        }
+
         let searchFrom = 0;
 
         while (searchFrom <= haystack.length - needle.length) {
@@ -42,7 +79,13 @@ export function findResponseMatches(text, markers, { caseSensitive = true } = {}
 
             if (!overlaps) {
                 occupied.fill(1, start, end);
-                matches.push({ marker: rule.marker, start, end, markerIndex: rule.index });
+                matches.push({
+                    marker: rule.text,
+                    mode: rule.mode,
+                    start,
+                    end,
+                    markerIndex: rule.index
+                });
             }
 
             searchFrom = start + 1;
@@ -53,12 +96,19 @@ export function findResponseMatches(text, markers, { caseSensitive = true } = {}
 }
 
 export function getMatchedResponseMarkers(text, markers, options) {
-    const matched = new Set(findResponseMatches(text, markers, options).map(match => match.marker));
-    return markers.filter(marker => matched.has(marker));
+    return getMatchedResponseMatchers(text, markers, options).map(matcher => matcher.text);
 }
 
-export function highlightResponseMatches(element, markers, options) {
-    if (!element || !Array.isArray(markers) || markers.length === 0) return 0;
+export function getMatchedResponseMatchers(text, matchers, options) {
+    const normalizedMatchers = normalizeResponseMatchers(matchers);
+    const matchedIndexes = new Set(
+        findResponseMatches(text, normalizedMatchers, options).map(match => match.markerIndex)
+    );
+    return normalizedMatchers.filter((_, index) => matchedIndexes.has(index));
+}
+
+export function highlightResponseMatches(element, matchers, options) {
+    if (!element || !Array.isArray(matchers) || matchers.length === 0) return 0;
 
     const doc = element.ownerDocument || document;
     const showText = doc.defaultView?.NodeFilter?.SHOW_TEXT || 4;
@@ -73,7 +123,7 @@ export function highlightResponseMatches(element, markers, options) {
         textNodes.push({ node, start, end: offset });
     }
 
-    const matches = findResponseMatches(element.textContent || '', markers, options);
+    const matches = findResponseMatches(element.textContent || '', matchers, options);
     if (matches.length === 0) return 0;
 
     textNodes.reverse().forEach(entry => {
@@ -93,7 +143,7 @@ export function highlightResponseMatches(element, markers, options) {
             matchedNode.splitText(intersection.end - intersection.start);
             const mark = doc.createElement('mark');
             mark.className = 'response-match-highlight';
-            mark.title = `Response marker: ${intersection.marker}`;
+            mark.title = `Response matcher: ${intersection.marker}`;
             matchedNode.parentNode.replaceChild(mark, matchedNode);
             mark.appendChild(matchedNode);
         });
