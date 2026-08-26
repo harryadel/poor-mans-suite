@@ -518,12 +518,36 @@
                         <table id="bulk-results-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Payload</th>
-                                    <th>Status</th>
-                                    <th>Size</th>
-                                    <th>Time</th>
-                                    <th>Matches</th>
+                                    <th scope="col" data-sort-key="id" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by ID">
+                                            <span>ID</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
+                                    <th scope="col" data-sort-key="payload" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by Payload">
+                                            <span>Payload</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
+                                    <th scope="col" data-sort-key="status" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by Status">
+                                            <span>Status</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
+                                    <th scope="col" data-sort-key="size" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by Size">
+                                            <span>Size</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
+                                    <th scope="col" data-sort-key="time" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by Time">
+                                            <span>Time</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
+                                    <th scope="col" data-sort-key="matches" aria-sort="none">
+                                        <button type="button" class="bulk-sort-button" aria-label="Sort by Matches">
+                                            <span>Matches</span><span class="bulk-sort-indicator" aria-hidden="true"></span>
+                                        </button>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>

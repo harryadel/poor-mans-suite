@@ -1611,6 +1611,50 @@ th {
     top: 0;
 }
 
+#bulk-results-table th[data-sort-key] {
+    padding: 0;
+}
+
+#bulk-results-table .bulk-sort-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-weight: inherit;
+    text-align: left;
+}
+
+#bulk-results-table .bulk-sort-button:hover {
+    background: rgba(138, 180, 248, 0.1);
+}
+
+#bulk-results-table .bulk-sort-button:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+}
+
+#bulk-results-table .bulk-sort-indicator::before {
+    content: "\2195";
+    opacity: 0.45;
+}
+
+#bulk-results-table th[aria-sort="ascending"] .bulk-sort-indicator::before {
+    content: "\2191";
+    opacity: 1;
+}
+
+#bulk-results-table th[aria-sort="descending"] .bulk-sort-indicator::before {
+    content: "\2193";
+    opacity: 1;
+}
+
 tr:hover {
     background: rgba(255, 255, 255, 0.05);
 }

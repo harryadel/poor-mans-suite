@@ -19,7 +19,9 @@ export function setupBulkReplay() {
     const closeModalBtn = document.querySelector('.close-modal');
     const startAttackBtn = document.getElementById('start-attack-btn');
     const bulkReplayPane = document.getElementById('bulk-replay-pane');
-    const bulkResultsTable = document.getElementById('bulk-results-table').querySelector('tbody');
+    const bulkResultsTableElement = document.getElementById('bulk-results-table');
+    const bulkResultsTable = bulkResultsTableElement.querySelector('tbody');
+    const bulkSortHeaders = Array.from(bulkResultsTableElement.querySelectorAll('thead th[data-sort-key]'));
     const bulkProgressBar = document.getElementById('bulk-progress-bar');
     const bulkProgressText = document.getElementById('bulk-progress-text');
     const bulkStopBtn = document.getElementById('bulk-stop-btn');
@@ -28,6 +30,67 @@ export function setupBulkReplay() {
     const responseMatchersContainer = document.getElementById('response-matchers');
     const addResponseMatcherBtn = document.getElementById('add-response-matcher');
     const responseMatchCaseSensitiveInput = document.getElementById('response-match-case-sensitive');
+    const numericSortKeys = new Set(['id', 'status', 'size', 'time']);
+    let bulkSortState = { key: null, direction: 'ascending' };
+
+    function getRowSortValue(row, key) {
+        const value = row.dataset[`sort${key.charAt(0).toUpperCase()}${key.slice(1)}`];
+        if (!numericSortKeys.has(key)) return (value || '').toLocaleLowerCase();
+        if (value === undefined || value === '') return null;
+
+        const numericValue = Number(value);
+        return Number.isFinite(numericValue) ? numericValue : null;
+    }
+
+    function applyBulkResultsSort() {
+        const { key, direction } = bulkSortState;
+        if (!key) return;
+
+        const directionMultiplier = direction === 'ascending' ? 1 : -1;
+        const rows = Array.from(bulkResultsTable.querySelectorAll('tr'));
+        rows.sort((leftRow, rightRow) => {
+            const leftValue = getRowSortValue(leftRow, key);
+            const rightValue = getRowSortValue(rightRow, key);
+            let comparison = 0;
+
+            if (leftValue === null || rightValue === null) {
+                if (leftValue === null && rightValue !== null) comparison = 1;
+                if (leftValue !== null && rightValue === null) comparison = -1;
+            } else if (numericSortKeys.has(key)) {
+                comparison = leftValue - rightValue;
+            } else {
+                comparison = leftValue.localeCompare(rightValue);
+            }
+
+            if (comparison !== 0) return comparison * directionMultiplier;
+            return Number(leftRow.dataset.sortId) - Number(rightRow.dataset.sortId);
+        });
+        bulkResultsTable.append(...rows);
+    }
+
+    function renderBulkSortState() {
+        bulkSortHeaders.forEach(header => {
+            const isActive = header.dataset.sortKey === bulkSortState.key;
+            header.setAttribute('aria-sort', isActive ? bulkSortState.direction : 'none');
+        });
+    }
+
+    function resetBulkSort() {
+        bulkSortState = { key: null, direction: 'ascending' };
+        renderBulkSortState();
+    }
+
+    bulkSortHeaders.forEach(header => {
+        header.querySelector('.bulk-sort-button')?.addEventListener('click', () => {
+            const key = header.dataset.sortKey;
+            const direction = bulkSortState.key === key && bulkSortState.direction === 'ascending'
+                ? 'descending'
+                : 'ascending';
+            bulkSortState = { key, direction };
+            renderBulkSortState();
+            applyBulkResultsSort();
+        });
+    });
 
     function readResponseMatchers() {
         if (!responseMatchersContainer) return [];
@@ -650,6 +713,7 @@ export function setupBulkReplay() {
         bulkReplayPane.style.display = 'flex';
         verticalResizeHandle.style.display = 'block';
         bulkResultsTable.innerHTML = '';
+        resetBulkSort();
         state.shouldStopBulk = false;
         state.shouldPauseBulk = false;
 
@@ -681,18 +745,26 @@ export function setupBulkReplay() {
             if (state.shouldStopBulk) break;
 
             const { requestContent } = attackRequests[i];
+            const payloadText = attackRequests[i].payloads.join(', ');
 
             const row = document.createElement('tr');
             row.dataset.index = i;
+            row.dataset.sortId = String(i + 1);
+            row.dataset.sortPayload = payloadText;
+            row.dataset.sortStatus = '';
+            row.dataset.sortSize = '';
+            row.dataset.sortTime = '';
+            row.dataset.sortMatches = '—';
             row.innerHTML = `
                 <td>${i + 1}</td>
-                <td>${escapeHtml(attackRequests[i].payloads.join(', '))}</td>
+                <td>${escapeHtml(payloadText)}</td>
                 <td class="status-cell">Sending...</td>
                 <td class="size-cell">-</td>
                 <td class="time-cell">-</td>
                 <td class="matches-cell empty">—</td>
             `;
             bulkResultsTable.appendChild(row);
+            applyBulkResultsSort();
             row.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
             row.addEventListener('click', () => {
@@ -816,7 +888,8 @@ export function setupBulkReplay() {
                 const endTime = performance.now();
                 const responseBody = await response.text();
                 const responseSize = new TextEncoder().encode(responseBody).length;
-                const duration = `${(endTime - startTime).toFixed(0)}ms`;
+                const durationMilliseconds = endTime - startTime;
+                const duration = `${durationMilliseconds.toFixed(0)}ms`;
 
                 const responseMatches = getMatchedResponseMatchers(responseBody, responseMatchers, {
                     caseSensitive: responseMatchCaseSensitive
@@ -841,8 +914,13 @@ export function setupBulkReplay() {
                 renderResponseMatches(row.querySelector('.matches-cell'), responseMatches, {
                     configuredMatcherCount: responseMatchers.length
                 });
+                row.dataset.sortStatus = String(response.status);
+                row.dataset.sortSize = String(responseSize);
+                row.dataset.sortTime = String(durationMilliseconds);
+                row.dataset.sortMatches = row.querySelector('.matches-cell').textContent;
                 row.classList.toggle('has-response-match', responseMatches.length > 0);
                 row.classList.toggle('has-no-response-match', responseMatchers.length > 0 && responseMatches.length === 0);
+                applyBulkResultsSort();
 
             } catch (error) {
                 const endTime = performance.now();
@@ -867,6 +945,11 @@ export function setupBulkReplay() {
                     configuredMatcherCount: responseMatchers.length,
                     error: true
                 });
+                row.dataset.sortStatus = '';
+                row.dataset.sortSize = '';
+                row.dataset.sortTime = '';
+                row.dataset.sortMatches = row.querySelector('.matches-cell').textContent;
+                applyBulkResultsSort();
             }
 
             completed++;
