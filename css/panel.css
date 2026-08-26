@@ -1545,6 +1545,10 @@ body.theme-transitioning img {
     color: #5f6368;
 }
 
+#bulk-results-table tr.has-no-response-match > td:first-child {
+    box-shadow: inset 3px 0 0 var(--error-color);
+}
+
 .response-match-badge {
     display: inline-block;
     max-width: 220px;
@@ -1558,6 +1562,20 @@ body.theme-transitioning img {
     text-overflow: ellipsis;
     white-space: nowrap;
     vertical-align: middle;
+}
+
+.response-match-badge-negative {
+    border-color: var(--error-color);
+    background: rgba(242, 139, 130, 0.14);
+    color: var(--error-color);
+    font-weight: 600;
+}
+
+.response-match-badge-not-checked {
+    border-color: #5f6368;
+    border-style: dashed;
+    background: rgba(95, 99, 104, 0.12);
+    color: #9aa0a6;
 }
 
 .response-match-highlight {

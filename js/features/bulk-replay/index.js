@@ -128,14 +128,33 @@ export function setupBulkReplay() {
         });
     }
 
-    function renderResponseMatches(cell, matchers) {
+    function renderResponseMatches(cell, matchers, { configuredMatcherCount = 0, error = false } = {}) {
         if (!cell) return;
 
         cell.replaceChildren();
-        cell.classList.toggle('empty', matchers.length === 0);
+        cell.classList.toggle('empty', configuredMatcherCount === 0);
+        cell.classList.toggle('no-match', configuredMatcherCount > 0 && matchers.length === 0 && !error);
+
+        if (configuredMatcherCount === 0) {
+            cell.textContent = '—';
+            return;
+        }
+
+        if (error) {
+            const badge = document.createElement('span');
+            badge.className = 'response-match-badge response-match-badge-not-checked';
+            badge.textContent = 'Not checked';
+            badge.title = 'The request failed before response matchers could be checked';
+            cell.appendChild(badge);
+            return;
+        }
 
         if (matchers.length === 0) {
-            cell.textContent = '—';
+            const badge = document.createElement('span');
+            badge.className = 'response-match-badge response-match-badge-negative';
+            badge.textContent = 'No match';
+            badge.title = 'None of the configured response matchers matched';
+            cell.appendChild(badge);
             return;
         }
 
@@ -745,8 +764,11 @@ export function setupBulkReplay() {
                 row.querySelector('.status-cell').textContent = `${response.status} ${response.statusText}`;
                 row.querySelector('.size-cell').textContent = formatBytes(responseSize);
                 row.querySelector('.time-cell').textContent = duration;
-                renderResponseMatches(row.querySelector('.matches-cell'), responseMatches);
+                renderResponseMatches(row.querySelector('.matches-cell'), responseMatches, {
+                    configuredMatcherCount: responseMatchers.length
+                });
                 row.classList.toggle('has-response-match', responseMatches.length > 0);
+                row.classList.toggle('has-no-response-match', responseMatchers.length > 0 && responseMatches.length === 0);
 
             } catch (error) {
                 const endTime = performance.now();
@@ -767,6 +789,10 @@ export function setupBulkReplay() {
 
                 row.querySelector('.status-cell').textContent = 'Error';
                 row.querySelector('.status-cell').title = error.message;
+                renderResponseMatches(row.querySelector('.matches-cell'), [], {
+                    configuredMatcherCount: responseMatchers.length,
+                    error: true
+                });
             }
 
             completed++;
