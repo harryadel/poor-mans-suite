@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Promotional Banner
     if (elements.promoBanner && elements.closeBannerBtn) {
         // Check if banner was previously dismissed
-        const bannerDismissed = localStorage.getItem('repPlusBannerDismissed');
+        const bannerDismissed = localStorage.getItem('poorMansSuiteBannerDismissed');
         if (bannerDismissed === 'true') {
             elements.promoBanner.classList.add('hidden');
         }
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle banner dismissal
         elements.closeBannerBtn.addEventListener('click', () => {
             elements.promoBanner.classList.add('hidden');
-            localStorage.setItem('repPlusBannerDismissed', 'true');
+            localStorage.setItem('poorMansSuiteBannerDismissed', 'true');
         });
     }
 
@@ -123,14 +123,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Remove Duplicates Toggle
     if (elements.removeDuplicatesBtn) {
         // Load saved preference (default: true/enabled)
-        const removeDuplicatesEnabled = localStorage.getItem('rep_remove_duplicates') !== 'false';
+        const removeDuplicatesEnabled = localStorage.getItem('poor_mans_suite_remove_duplicates') !== 'false';
         updateRemoveDuplicatesButton(removeDuplicatesEnabled);
         
         elements.removeDuplicatesBtn.addEventListener('click', () => {
-            const currentState = localStorage.getItem('rep_remove_duplicates') !== 'false';
+            const currentState = localStorage.getItem('poor_mans_suite_remove_duplicates') !== 'false';
             const newState = !currentState;
             
-            localStorage.setItem('rep_remove_duplicates', newState.toString());
+            localStorage.setItem('poor_mans_suite_remove_duplicates', newState.toString());
             updateRemoveDuplicatesButton(newState);
             
             // If enabling, remove existing duplicates

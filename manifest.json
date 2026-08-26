@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "rep+",
-    "version": "1.3.2",
-    "description": "rep+ - Capture, modify, and replay HTTP requests in Chrome DevTools with AI-powered security analysis.",
+    "name": "Poor Man's Suite",
+    "version": "1.0.0",
+    "description": "Poor Man's Suite captures, modifies, and replays HTTP requests in Chrome DevTools with optional AI-powered security analysis.",
     "permissions": [
         "storage"
     ],

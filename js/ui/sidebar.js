@@ -28,7 +28,7 @@ export function setupSidebar() {
             elements.showSidebarBtn.style.display = hidden ? 'flex' : 'none';
         }
         
-        localStorage.setItem('rep_sidebar_hidden', hidden ? '1' : '0');
+        localStorage.setItem('poor_mans_suite_sidebar_hidden', hidden ? '1' : '0');
     };
 
     if (elements.toggleSidebarBtn) {
@@ -46,9 +46,8 @@ export function setupSidebar() {
     }
 
     // Load saved sidebar state
-    const savedSidebar = localStorage.getItem('rep_sidebar_hidden');
+    const savedSidebar = localStorage.getItem('poor_mans_suite_sidebar_hidden');
     if (savedSidebar === '1') {
         toggleSidebarVisibility(true);
     }
 }
-

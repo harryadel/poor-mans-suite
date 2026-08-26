@@ -1,15 +1,15 @@
-# PowerShell script for Windows users to create Chrome Web Store package
+# PowerShell script for Windows users to create a production extension package
 # Usage: .\scripts\package.ps1
 
 $ErrorActionPreference = "Stop"
 
-$zipName = "rep-plus-extension.zip"
+$zipName = "poor-mans-suite-extension.zip"
 # Get all files and explicitly exclude directories and files
 $excludeDirs = @("tests", "node_modules", "scripts", ".git", "dist", "build", "coverage", ".nyc_output", "temp")
-$excludeFiles = @("package.json", "package-lock.json", "vitest.config.js", ".gitignore", "ARCHITECTURE_REVIEW.md", "CONTRIBUTING.md", "rep-plus-extension.zip")
-$excludePatterns = @("*.test.js", "*.spec.js", "*.log", "*.tmp", ".DS_Store")
+$excludeFiles = @("package.json", "package-lock.json", "vitest.config.js", ".gitignore", "ARCHITECTURE_REVIEW.md", "CONTRIBUTING.md", "Agent.md")
+$excludePatterns = @("*.test.js", "*.spec.js", "*.zip", "*.log", "*.tmp", ".DS_Store")
 
-Write-Host "📦 Creating production package for Chrome Web Store...`n" -ForegroundColor Cyan
+Write-Host "📦 Creating Poor Man's Suite production package...`n" -ForegroundColor Cyan
 
 # Remove old zip if exists
 if (Test-Path $zipName) {
@@ -59,7 +59,6 @@ Write-Host "   - Test files (tests/, *.test.js, *.spec.js)"
 Write-Host "   - Dev dependencies (node_modules/, package.json)"
 Write-Host "   - Build config (vitest.config.js)"
 Write-Host "   - Git files (.git/, .gitignore)"
-Write-Host "   - Documentation (CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)"
-Write-Host "`n🚀 Ready to upload to Chrome Web Store!" -ForegroundColor Green
-
-
+Write-Host "   - Internal/development documentation (Agent.md, CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)"
+Write-Host "   - Build artifacts and existing zip archives"
+Write-Host "`n🚀 Ready for distribution!" -ForegroundColor Green

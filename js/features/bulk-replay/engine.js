@@ -1,4 +1,4 @@
-// Attack Mode Engine for rep+ Bulk Replay
+// Attack Mode Engine for Poor Man's Suite Bulk Replay
 // Implements Burp Suite Intruder-style attack modes
 
 /**

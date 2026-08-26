@@ -140,10 +140,10 @@ function generatePostmanCollection(endpointGroups) {
     // Create Postman Collection v2.1 format
     const collection = {
         info: {
-            name: 'rep+ Extracted Parameters',
-            description: 'API endpoints and parameters extracted by rep+',
+            name: "Poor Man's Suite Extracted Parameters",
+            description: "API endpoints and parameters extracted by Poor Man's Suite",
             schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
-            _exporter_id: 'rep-plus'
+            _exporter_id: 'poor-mans-suite'
         },
         item: items
     };
@@ -1144,7 +1144,7 @@ export function initExtractorUI() {
                     File: secret.file || ''
                 }));
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                downloadCSV(exportData, `rep-plus-secrets-${timestamp}.csv`, ['Type', 'Match', 'Confidence', 'File']);
+                downloadCSV(exportData, `poor-mans-suite-secrets-${timestamp}.csv`, ['Type', 'Match', 'Confidence', 'File']);
             });
         }
     }
@@ -1305,7 +1305,7 @@ export function initExtractorUI() {
                     'Source File': endpoint.file || ''
                 }));
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                downloadCSV(exportData, `rep-plus-endpoints-${timestamp}.csv`, ['Method', 'Endpoint', 'Confidence', 'Source File']);
+                downloadCSV(exportData, `poor-mans-suite-endpoints-${timestamp}.csv`, ['Method', 'Endpoint', 'Confidence', 'Source File']);
             });
         }
     }
@@ -1594,7 +1594,7 @@ export function initExtractorUI() {
                     'Source File': param.sourceFile || param.file || ''
                 }));
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                downloadCSV(exportData, `rep-plus-parameters-${timestamp}.csv`, ['Parameter', 'Location', 'Endpoint', 'Method', 'Risk Level', 'Confidence', 'Source File']);
+                downloadCSV(exportData, `poor-mans-suite-parameters-${timestamp}.csv`, ['Parameter', 'Location', 'Endpoint', 'Method', 'Risk Level', 'Confidence', 'Source File']);
             });
         }
 
@@ -1604,7 +1604,7 @@ export function initExtractorUI() {
             exportPostmanBtn.addEventListener('click', () => {
                 const postmanCollection = generatePostmanCollection(endpointGroupsArray);
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-                downloadJSON(postmanCollection, `rep-plus-postman-${timestamp}.json`);
+                downloadJSON(postmanCollection, `poor-mans-suite-postman-${timestamp}.json`);
             });
         }
     }
@@ -1952,4 +1952,3 @@ export function initExtractorUI() {
         container.appendChild(nextBtn);
     }
 }
-

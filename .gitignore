@@ -10,7 +10,7 @@ temp/
 coverage/
 .nyc_output/
 
-# Dev dependencies (exclude from Chrome Web Store builds, but keep in git for contributors)
+# Dev dependencies (exclude from production extension packages, but keep in git for contributors)
 # Note: package.json and package-lock.json are needed for contributors, but excluded from zip
 # Note: vitest.config.js is needed for contributors, but excluded from zip
 # Note: Test files (tests/, *.test.js) are needed for contributors, but excluded from zip
@@ -18,5 +18,4 @@ coverage/
 
 # Packaging temp files
 .zip-files.txt
-rep-plus-extension.zip
-
+poor-mans-suite-extension.zip

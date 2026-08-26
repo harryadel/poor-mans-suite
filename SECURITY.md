@@ -1,10 +1,10 @@
 # Security Policy
 
-rep+ is a Chrome DevTools extension that captures and inspects HTTP requests.  
-Because it uses permissions like `activeTab`, `webRequest`, and optional `<all_urls>`, security is important.
+Poor Man's Suite is a Chrome DevTools extension that captures and inspects HTTP requests.
+Because it can request `webRequest` and `<all_urls>` access for optional capture and replay features, security is important.
 
 ## Reporting a Vulnerability
-If you find a security issue, you can report it in two ways:
+If you find a security issue, report it through the maintained repository:
 
-1. **Open a security issue** on GitHub
-2. **Email:** repbscript@gmail.com
+1. For sensitive reports, use the repository's [Security page](https://github.com/harryadel/poor-mans-suite/security).
+2. For non-sensitive security concerns, [open an issue](https://github.com/harryadel/poor-mans-suite/issues).

@@ -170,7 +170,7 @@ export async function streamExplanation(apiKey, model, request, onUpdate, provid
     if (provider === 'opencode') {
         const systemPrompt = "You are an expert security researcher and web developer. Explain the following HTTP request in detail, highlighting interesting parameters, potential security implications, and what this request is likely doing. Be concise but thorough.";
         return streamFromOpenCode(getAISettings(), model, systemPrompt, request, onUpdate, {
-            sessionTitle: 'rep+ request explanation'
+            sessionTitle: "Poor Man's Suite request explanation"
         });
     }
     return streamExplanationFromClaude(apiKey, model, request, onUpdate);
@@ -191,7 +191,7 @@ export async function streamExplanationWithSystem(apiKey, model, systemPrompt, u
     }
     if (provider === 'opencode') {
         return streamFromOpenCode(getAISettings(), model, systemPrompt, userPrompt, onUpdate, {
-            sessionTitle: 'rep+ security analysis'
+            sessionTitle: "Poor Man's Suite security analysis"
         });
     }
     return streamExplanationFromClaudeWithSystem(apiKey, model, systemPrompt, userPrompt, onUpdate);
@@ -627,7 +627,7 @@ function getOrCreatePort() {
     
     // Create new port connection
     try {
-        sharedPort = chrome.runtime.connect({ name: "rep-panel" });
+        sharedPort = chrome.runtime.connect({ name: "poor-mans-suite-panel" });
         console.log('Created new port connection for local model requests');
         
         // Set up shared message listener

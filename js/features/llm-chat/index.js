@@ -74,7 +74,7 @@ function getChatExportFilename(extension) {
         }
     }
 
-    return `rep-plus-ai-chat-${host}-${endpoint}-${timestamp}.${extension}`;
+    return `poor-mans-suite-ai-chat-${host}-${endpoint}-${timestamp}.${extension}`;
 }
 
 function buildChatTranscriptMarkdown() {
@@ -85,11 +85,11 @@ function buildChatTranscriptMarkdown() {
         ? `${request.method || 'GET'} ${request.url || ''}`.trim()
         : 'Unknown request';
     const messages = chatHistory.map(message => {
-        const heading = message.role === 'assistant' ? 'Rep+ AI' : 'You';
+        const heading = message.role === 'assistant' ? "Poor Man's Suite AI" : 'You';
         return `## ${heading}\n\n${message.content}`;
     });
 
-    return `# Rep+ AI conversation\n\n**Request:** ${requestLabel}\n\n${messages.join('\n\n')}`;
+    return `# Poor Man's Suite AI conversation\n\n**Request:** ${requestLabel}\n\n${messages.join('\n\n')}`;
 }
 
 function downloadChatTranscript(markdown) {
@@ -128,7 +128,7 @@ function printChatTranscript(markdown) {
         </head>
         <body>
             <pre>${escapeHtml(markdown)}</pre>
-            <div class="footer">Exported from rep+ on ${escapeHtml(new Date().toLocaleString())}</div>
+            <div class="footer">Exported from Poor Man's Suite on ${escapeHtml(new Date().toLocaleString())}</div>
         </body>
         </html>
     `);
@@ -556,7 +556,7 @@ async function sendChatMessage(userMessage, loadingElement, onUpdate, onComplete
         
         // Use proper message array for rolling context
         const requestUrl = new URL(request.request.url);
-        const sessionTitle = `rep+ ${request.request.method || 'GET'} ${requestUrl.hostname}${requestUrl.pathname}`.slice(0, 120);
+        const sessionTitle = `Poor Man's Suite ${request.request.method || 'GET'} ${requestUrl.hostname}${requestUrl.pathname}`.slice(0, 120);
         await streamChatWithMessages(
             settings.apiKey,
             settings.model,

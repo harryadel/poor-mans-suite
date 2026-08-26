@@ -1,0 +1,24 @@
+Poor Man's Suite
+Copyright (C) 2026 Harry Adel
+
+Poor Man's Suite is free software distributed under the GNU General Public
+License, version 3 or (at your option) any later version. See LICENSE.
+
+This project is derived from rep+:
+https://github.com/repplus/rep-chrome
+
+The upstream work was released under the MIT License:
+Copyright (c) 2025 Bour Abdelhadi
+
+The complete upstream MIT copyright and permission notice is preserved in
+LICENSES/MIT-upstream.txt.
+
+Bundled third-party components retain their respective terms:
+
+- Highlight.js 11.9.0: LICENSES/highlight.js-BSD-3-Clause.txt
+- html2canvas 1.4.1: LICENSES/html2canvas-MIT.txt
+- js-yaml 4.1.1: LICENSES/js-yaml-MIT.txt
+- Marked 15.0.12 and Markdown: LICENSES/marked-LICENSE.md
+- jsdiff 5.1.0: LICENSES/jsdiff-BSD-3-Clause.txt
+- Kingfisher-derived rules: LICENSES/Kingfisher-Apache-2.0.txt and
+  LICENSES/Kingfisher-NOTICE.txt

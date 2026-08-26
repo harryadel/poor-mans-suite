@@ -1,8 +1,8 @@
 chrome.devtools.panels.create(
-    "Rep+",
+    "Poor Man's Suite",
     "icons/icon16.png",
     "panel.html",
     function (panel) {
-        console.log("Repeater panel created");
+        console.log("Poor Man's Suite panel created");
     }
 );

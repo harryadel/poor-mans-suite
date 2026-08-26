@@ -25,7 +25,7 @@ export function initMultiTabCapture() {
         isConnecting = true;
 
         try {
-            backgroundPort = chrome.runtime.connect({ name: "rep-panel" });
+            backgroundPort = chrome.runtime.connect({ name: "poor-mans-suite-panel" });
             console.log("Connected to background service worker");
             isConnecting = false;
 

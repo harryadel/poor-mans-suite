@@ -1,7 +1,8 @@
 {
-  "name": "rep-plus",
+  "name": "poor-mans-suite",
   "version": "1.0.0",
-  "description": "Chrome DevTools extension for HTTP request manipulation",
+  "description": "Poor Man's Suite is a Chrome DevTools extension for capturing, modifying, and replaying HTTP requests with optional AI-assisted security analysis.",
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "test": "vitest run",
@@ -15,4 +16,3 @@
     "jsdom": "^23.0.0"
   }
 }
-

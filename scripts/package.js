@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Package script for Chrome Web Store submission
+// Package script for production extension distribution
 // Excludes test files, dev dependencies, and other non-production files
 
 import { execSync } from 'child_process';
@@ -11,9 +11,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT_DIR = join(__dirname, '..');
 
-const ZIP_NAME = join(ROOT_DIR, 'rep-plus-extension.zip');
+const ZIP_NAME = join(ROOT_DIR, 'poor-mans-suite-extension.zip');
 
-console.log('📦 Creating production package for Chrome Web Store...\n');
+console.log("📦 Creating Poor Man's Suite production package...\n");
 
 // Remove old zip if it exists
 if (existsSync(ZIP_NAME)) {
@@ -26,7 +26,7 @@ try {
   // This is more reliable than zip's exclude patterns
   console.log('Collecting files to package...');
   
-  const findCommand = `find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tests/*' ! -path './scripts/*' ! -name '*.test.js' ! -name '*.spec.js' ! -name 'package.json' ! -name 'package-lock.json' ! -name 'vitest.config.js' ! -name '.gitignore' ! -name 'ARCHITECTURE_REVIEW.md' ! -name 'CONTRIBUTING.md' ! -name 'rep-plus-extension.zip' ! -name '.DS_Store'`;
+  const findCommand = `find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tests/*' ! -path './scripts/*' ! -path './dist/*' ! -path './build/*' ! -path './coverage/*' ! -path './.nyc_output/*' ! -path './temp/*' ! -name '*.test.js' ! -name '*.spec.js' ! -name '*.zip' ! -name 'package.json' ! -name 'package-lock.json' ! -name 'vitest.config.js' ! -name '.gitignore' ! -name 'ARCHITECTURE_REVIEW.md' ! -name 'CONTRIBUTING.md' ! -name 'Agent.md' ! -name '.DS_Store'`;
   
   const files = execSync(findCommand, { 
     encoding: 'utf-8',
@@ -75,9 +75,10 @@ try {
   console.log('   - Dev dependencies (node_modules/, package.json)');
   console.log('   - Build config (vitest.config.js)');
   console.log('   - Git files (.git/, .gitignore)');
-  console.log('   - Documentation (CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)');
+  console.log('   - Internal/development documentation (Agent.md, CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)');
+  console.log('   - Build artifacts and existing zip archives');
   console.log('   - Scripts folder (scripts/)');
-  console.log('\n🚀 Ready to upload to Chrome Web Store!');
+  console.log('\n🚀 Ready for distribution!');
   
 } catch (error) {
   console.error('\n❌ Error creating package:', error.message);

@@ -93,7 +93,7 @@ export function createSSEParser(onEvent) {
 function getPort() {
     if (sharedPort) return sharedPort;
 
-    sharedPort = chrome.runtime.connect({ name: 'rep-panel' });
+    sharedPort = chrome.runtime.connect({ name: 'poor-mans-suite-panel' });
     sharedPort.onMessage.addListener(message => {
         if (!message.type?.startsWith('opencode-') || !message.requestId) return;
         requestListeners.get(message.requestId)?.(message);
@@ -266,7 +266,7 @@ async function createSession(settings, title) {
     const session = await requestOpenCode(settings, '/session', {
         method: 'POST',
         body: {
-            title: title || 'rep+ investigation',
+            title: title || "Poor Man's Suite investigation",
             permission: [{ permission: '*', pattern: '*', action: 'deny' }]
         }
     });
@@ -533,7 +533,7 @@ export async function streamFromOpenCode(settings, model, systemPrompt, userProm
             .filter(message => message.role !== 'system')
             .map(message => `${message.role === 'assistant' ? 'Assistant' : 'User'}:\n${message.content}`)
             .join('\n\n');
-        if (transcript) prompt = `Continue this rep+ investigation:\n\n${transcript}`;
+        if (transcript) prompt = `Continue this Poor Man's Suite investigation:\n\n${transcript}`;
     }
 
     try {

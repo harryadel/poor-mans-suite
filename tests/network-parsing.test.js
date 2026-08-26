@@ -191,7 +191,11 @@ Host: example.com`;
     const result = parseRequest(rawContent, false);
 
     expect(result.method).toBe('GET');
-    expect(Object.keys(result.filteredHeaders).length).toBe(0);
+    expect(result.filteredHeaders).toEqual({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0'
+    });
   });
 
   it('should handle special characters in URL path', () => {
@@ -722,4 +726,3 @@ describe('Export/Import', () => {
     expect(exportedRequest.response.headers).toEqual({ ResHeader1: 'ResValue1' });
   });
 });
-

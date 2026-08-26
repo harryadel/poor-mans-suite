@@ -9,31 +9,20 @@
   <img src="https://img.shields.io/badge/Bug%20Bounty-Friendly-orange" alt="Bug Bounty Friendly">
 
   <!-- Stars -->
-  <a href="https://github.com/bscript/rep/stargazers">
-    <img src="https://img.shields.io/github/stars/bscript/rep?style=social" alt="GitHub Stars">
-  </a>
-
-   <!-- Discord -->
-  <a href="https://discord.gg/D25vDTXFUP">
-        <img src="https://img.shields.io/discord/1442955541293961429.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2" alt="Discord">
-  </a>
-
-  <!-- Sponsor -->
-  <a href="https://github.com/sponsors/bscript">
-    <img src="https://img.shields.io/badge/Sponsor-%F0%9F%92%96-ea4aaa?style=flat-square" alt="Sponsor">
+  <a href="https://github.com/harryadel/poor-mans-suite/stargazers">
+    <img src="https://img.shields.io/github/stars/harryadel/poor-mans-suite?style=social" alt="GitHub Stars">
   </a>
 </p>
 
-# rep+
+# Poor Man's Suite
 
-rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeater, now supercharged with AI. I often need to poke at a few requests without spinning up the full Burp stack, so I built this extension to keep my workflow fast, focused, and intelligent with integrated LLM support.
+Poor Man's Suite is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeater. It captures, modifies, and replays HTTP requests in a focused browser workflow, with optional integrated LLM support.
 
-<img width="1713" height="986" alt="Screenshot 2025-12-26 at 15 35 43" src="https://github.com/user-attachments/assets/31015b99-b1d0-4a8e-8f4d-0db3e43af59b" />
+> **Attribution:** Poor Man's Suite is a derivative of [rep+](https://github.com/repplus/rep-chrome). The combined project is distributed under GPL-3.0-or-later; the upstream MIT copyright and permission notice are preserved in [LICENSES/MIT-upstream.txt](LICENSES/MIT-upstream.txt) and [NOTICE](NOTICE).
 
-[![Watch Demo](https://img.shields.io/badge/Demo-Video-red?style=for-the-badge&logo=youtube)](https://video.twimg.com/amplify_video/1992382891196571648/pl/zE5-oOXgVua1ZBQn.m3u8?tag=14)
+## Install Poor Man's Suite
 
-## 🚀 Install rep+ Chrome Extension  
-[![rep+](https://img.shields.io/badge/rep%2B%20Chrome%20Extension-Install%20Now-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/rep+/dhildnnjbegaggknfkagdpnballiepfm)
+Poor Man's Suite does not currently have a Chrome Web Store listing. Install it from this repository as an unpacked extension by following [Installation](#installation).
 
 
 ## Table of Contents
@@ -44,7 +33,7 @@ rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeate
 - [Limitations](#-limitations)
 - [Star History](#star-history)
 - [Found a Bug or Issue?](#found-a-bug-or-issue)
-- [❤️ Support the Project](#️-support-the-project)
+- [Attribution & License](#attribution--license)
 
 ## Features
 
@@ -106,7 +95,7 @@ rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeate
 
 ### AI Assistance
 
-#### Rep+ AI Assistance (Interactive LLM Chat)
+#### Poor Man's Suite AI Assistance (Interactive LLM Chat)
 - **Interactive Chat Interface**: Real-time conversation with AI about your HTTP requests and responses
   - Streaming responses with live markdown rendering
   - Syntax highlighting for code blocks (supports multiple languages)
@@ -176,7 +165,7 @@ rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeate
 - Syntax highlighting for JSON/XML/HTML.
 
 ## Quick Start
-1) Open Chrome DevTools → “rep+” tab.  
+1) Open Chrome DevTools → **Poor Man's Suite** tab.
 2) Browse: requests auto-capture.  
 3) Click a request: see raw request/response immediately.  
 4) Edit and “Send” to replay; use AI buttons for explain/attack suggestions.  
@@ -186,19 +175,19 @@ rep+ is a lightweight Chrome DevTools extension inspired by Burp Suite's Repeate
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/bscript/rep.git
+   git clone https://github.com/harryadel/poor-mans-suite.git
    ```
 2. **Open Chrome Extensions**:
    - Navigate to `chrome://extensions/` in your browser.
    - Enable **Developer mode** (toggle in the top right corner).
 3. **Load the Extension**:
    - Click **Load unpacked**.
-   - Select the `rep` folder you just cloned.
+   - Select the `poor-mans-suite` folder you just cloned.
 4. **Open DevTools**:
    - Press `F12` or right-click -> Inspect.
-   - Look for the **rep+** tab (you might need to click the `>>` overflow menu).
+   - Look for the **Poor Man's Suite** tab (you might need to click the `>>` overflow menu).
 
-This combo makes rep+ handy for bug bounty hunters and vulnerability researchers who want Burp-like iteration without the heavyweight UI. Install the extension, open DevTools, head to the rep+ panel, and start hacking. 😎
+This combo makes Poor Man's Suite handy for bug bounty hunters and vulnerability researchers who want Burp-like iteration without the heavyweight UI. Install the extension, open DevTools, head to the Poor Man's Suite panel, and start testing. 😎
 
 ### Local Model (Ollama) Setup
 If you use a local model (e.g., Ollama) you must allow Chrome extensions to call it, otherwise you’ll see 403/CORS errors.
@@ -218,37 +207,37 @@ If you use a local model (e.g., Ollama) you must allow Chrome extensions to call
 
 ### OpenCode Setup
 
-rep+ can use a local [OpenCode](https://opencode.ai/) server as a gateway to any model already connected in OpenCode.
+Poor Man's Suite can use a local [OpenCode](https://opencode.ai/) server as a gateway to any model already connected in OpenCode.
 
 1. Start OpenCode from a dedicated empty directory on a stable loopback port. A password is strongly recommended:
    ```bash
-   mkdir -p ~/.local/share/rep-plus/opencode
-   cd ~/.local/share/rep-plus/opencode
+   mkdir -p ~/.local/share/poor-mans-suite/opencode
+   cd ~/.local/share/poor-mans-suite/opencode
    OPENCODE_SERVER_PASSWORD="choose-a-password" opencode serve --hostname 127.0.0.1 --port 4096
    ```
    OpenCode also loads global `~/.config/opencode/AGENTS.md` or `~/.claude/CLAUDE.md` instructions. If those may contain sensitive information, launch with an isolated home while retaining your OpenCode authentication data:
    ```bash
    ORIGINAL_HOME="$HOME"
-   REPPLUS_OPENCODE_HOME="$HOME/.local/share/rep-plus/opencode/home"
-   mkdir -p "$REPPLUS_OPENCODE_HOME" "$HOME/.local/share/rep-plus/opencode/work"
-   cd "$HOME/.local/share/rep-plus/opencode/work"
-   HOME="$REPPLUS_OPENCODE_HOME" \
+   POOR_MANS_SUITE_OPENCODE_HOME="$HOME/.local/share/poor-mans-suite/opencode/home"
+   mkdir -p "$POOR_MANS_SUITE_OPENCODE_HOME" "$HOME/.local/share/poor-mans-suite/opencode/work"
+   cd "$HOME/.local/share/poor-mans-suite/opencode/work"
+   HOME="$POOR_MANS_SUITE_OPENCODE_HOME" \
      XDG_DATA_HOME="$ORIGINAL_HOME/.local/share" \
      OPENCODE_DISABLE_CLAUDE_CODE_PROMPT=1 \
      OPENCODE_SERVER_PASSWORD="choose-a-password" \
      opencode serve --hostname 127.0.0.1 --port 4096
    ```
-2. Open rep+ Settings and select **OpenCode**.
-3. rep+ automatically connects to `http://127.0.0.1:4096` as `opencode` and loads models available from that server configuration.
+2. Open Poor Man's Suite Settings and select **OpenCode**.
+3. Poor Man's Suite automatically connects to `http://127.0.0.1:4096` as `opencode` and loads models available from that server configuration.
 4. If your server uses `OPENCODE_SERVER_PASSWORD` or a custom loopback port, enter those advanced connection details and retry, then save.
 
-OpenCode sessions are kept while their rep+ request chat is active and deleted when that chat or request is cleared. All OpenCode tools are disabled for these sessions. OpenCode itself runs locally, but request and response data may still be sent to the cloud provider backing the model you select.
+OpenCode sessions are kept while their Poor Man's Suite request chat is active and deleted when that chat or request is cleared. All OpenCode tools are disabled for these sessions. OpenCode itself runs locally, but request and response data may still be sent to the cloud provider backing the model you select.
 
 ### OpenAI Codex Setup
 
-1. Open rep+ Settings and select **OpenAI (Codex)**.
+1. Open Poor Man's Suite Settings and select **OpenAI (Codex)**.
 2. Enter an OpenAI API key and click **Load Codex models**.
-3. Select a model available to the API key and save. rep+ uses the OpenAI Responses API with response storage disabled.
+3. Select a model available to the API key and save. Poor Man's Suite uses the OpenAI Responses API with response storage disabled.
 
 
 ## Permissions & Privacy
@@ -261,84 +250,33 @@ OpenCode sessions are kept while their rep+ request chat is active and deleted w
 
 ## ⚠️ Limitations
 
-rep+ runs inside Chrome DevTools, so:
+Poor Man's Suite runs inside Chrome DevTools, so:
 
 - No raw HTTP/1 or malformed requests (fetch() limitation)
 - Some headers can’t be overridden (browser sandbox)
 - No raw TCP sockets (no smuggling/pipelining tests)
 - DevTools panel constraints limit certain UI setups
 
-rep+ is best for quick testing, replaying, and experimenting — not full low-level HTTP work.
+Poor Man's Suite is best for quick testing, replaying, and experimenting — not full low-level HTTP work.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bscript/rep&type=date&legend=top-left)](https://www.star-history.com/#bscript/rep&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=harryadel/poor-mans-suite&type=date&legend=top-left)](https://www.star-history.com/#harryadel/poor-mans-suite&type=date&legend=top-left)
 
 ## Found a Bug or Issue?
 
-If you encounter any bugs, unexpected behavior, or have feature requests, please help me improve **rep+** by [opening an issue here](https://github.com/bscript/rep/issues).  
-I’ll do my best to address it as quickly as possible! 🙏
-
-## ❤️ Support the Project
-
-I maintain **rep+** alone, in my free time.  
-Sponsorship helps me keep improving the extension, adding new features, and responding to issues quickly.
-
-If **rep+ saved you time** during testing, development, or bug bounty work, please consider supporting the project.  
-**Every dollar helps. ❤️**
+If you encounter bugs, unexpected behavior, or have feature requests, please [open an issue in the Poor Man's Suite repository](https://github.com/harryadel/poor-mans-suite/issues).
 
 ## Contributors 🤝
 
-<a href="https://github.com/bscript/rep/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=bscript/rep" alt="Contributors" />
+<a href="https://github.com/harryadel/poor-mans-suite/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=harryadel/poor-mans-suite" alt="Contributors" />
 </a>
 
----
+## Attribution & License
 
-<h3 align="center">Sponsors</h3>
-<p align="center">
-  <a href="https://github.com/projectdiscovery">
-    <img src="https://avatars.githubusercontent.com/u/50994705?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/Snownin9">
-    <img src="https://avatars.githubusercontent.com/u/218675317?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/exxoticx">
-    <img src="https://avatars.githubusercontent.com/u/50809037?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-  &nbsp;&nbsp;
-  <a href="https://github.com/eduquintanilha">
-    <img src="https://avatars.githubusercontent.com/u/14018253?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-  &nbsp;&nbsp;
-   <a href="https://github.com/Snownull">
-    <img src="https://avatars.githubusercontent.com/u/190537179?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-   &nbsp;&nbsp;
-   <a href="https://github.com/assem-ch">
-    <img src="https://avatars.githubusercontent.com/u/315228?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-   &nbsp;&nbsp;
-   <a href="https://github.com/MrTurvey">
-    <img src="https://avatars.githubusercontent.com/u/5578593?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-   &nbsp;&nbsp;
-   <a href="https://github.com/greenat92">
-    <img src="https://avatars.githubusercontent.com/u/8342706?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-   &nbsp;&nbsp;
-   <a href="https://github.com/tixxdz">
-    <img src="https://avatars.githubusercontent.com/u/1549291?s=60" width="60" style="border-radius:50%;" alt="Sponsor"/>
-  </a>
-</p>
+Poor Man's Suite is maintained at <https://github.com/harryadel/poor-mans-suite> and is a derivative of [rep+](https://github.com/repplus/rep-chrome).
 
-<p align="center">
-  <a href="https://github.com/sponsors/bscript">
-    <img src="https://img.shields.io/badge/Become%20a%20Sponsor-%F0%9F%92%96-ea4aaa?style=for-the-badge" alt="Become a Sponsor"/>
-  </a>
-  <a href="https://github.com/user-attachments/assets/8e6933b5-8579-480b-99cf-161a392b4153">
-    <img src="https://img.shields.io/badge/Bitcoin%20Sponsor-₿-f7931a?style=for-the-badge&logo=bitcoin&logoColor=white" alt="Bitcoin Sponsor"/>
-  </a>
-</p>
+Poor Man's Suite is free software distributed under the [GNU General Public License version 3 or later](LICENSE). It comes with no warranty. Source code for each release is available from the maintained repository.
+
+Portions derived from rep+ remain attributed to Bour Abdelhadi under the original MIT terms. See [NOTICE](NOTICE) and [LICENSES/MIT-upstream.txt](LICENSES/MIT-upstream.txt). Bundled third-party libraries retain their own license notices.

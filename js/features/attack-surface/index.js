@@ -231,7 +231,7 @@ Be precise and consistent. Output ONLY valid JSON.`;
  */
 export function cacheCategories(categories) {
     try {
-        localStorage.setItem('repPlusAttackSurfaceCache', JSON.stringify(categories));
+        localStorage.setItem('poorMansSuiteAttackSurfaceCache', JSON.stringify(categories));
     } catch (error) {
         console.error('Failed to cache categories:', error);
     }
@@ -243,7 +243,7 @@ export function cacheCategories(categories) {
  */
 export function loadCachedCategories() {
     try {
-        const cached = localStorage.getItem('repPlusAttackSurfaceCache');
+        const cached = localStorage.getItem('poorMansSuiteAttackSurfaceCache');
         return cached ? JSON.parse(cached) : {};
     } catch (error) {
         console.error('Failed to load cached categories:', error);
@@ -255,5 +255,5 @@ export function loadCachedCategories() {
  * Clear category cache
  */
 export function clearCategoryCache() {
-    localStorage.removeItem('repPlusAttackSurfaceCache');
+    localStorage.removeItem('poorMansSuiteAttackSurfaceCache');
 }

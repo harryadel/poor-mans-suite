@@ -332,7 +332,7 @@ export function toggleLayout(save = true) {
     }
 
     if (save) {
-        localStorage.setItem('rep_layout_preference', isVertical ? 'vertical' : 'horizontal');
+        localStorage.setItem('poor_mans_suite_layout_preference', isVertical ? 'vertical' : 'horizontal');
     }
 }
 
@@ -378,7 +378,7 @@ export function initLayoutToggle(layoutToggleBtn) {
     layoutToggleBtn.addEventListener('click', () => toggleLayout());
 
     // Load saved layout preference
-    const savedLayout = localStorage.getItem('rep_layout_preference');
+    const savedLayout = localStorage.getItem('poor_mans_suite_layout_preference');
     if (savedLayout === 'vertical') {
         toggleLayout(false); // false to not save again (optimization)
     }
@@ -551,4 +551,3 @@ export function initPreviewControls() {
         });
     }
 }
-

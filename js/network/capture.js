@@ -20,14 +20,14 @@ export function setupNetworkListener(onRequestCaptured) {
         // Filter out data URLs or extension schemes
         if (!request.request.url.startsWith('http')) return;
 
-        // Filter out requests sent by rep+ extension (replayed requests)
+        // Filter out requests sent by Poor Man's Suite (replayed requests)
         // Check if request has our custom header
         if (request.request.headers) {
-            const hasRepPlusHeader = request.request.headers.some(h => 
-                (h.name === 'X-Rep-Plus-Replay' || h.name.toLowerCase() === 'x-rep-plus-replay') && 
+            const hasPoorMansSuiteHeader = request.request.headers.some(h =>
+                (h.name === 'X-Poor-Mans-Suite-Replay' || h.name.toLowerCase() === 'x-poor-mans-suite-replay') &&
                 h.value === 'true'
             );
-            if (hasRepPlusHeader) {
+            if (hasPoorMansSuiteHeader) {
                 return; // Skip requests sent by our extension
             }
         }
@@ -224,12 +224,12 @@ export function parseRequest(rawContent, useHttps) {
 }
 
 export async function executeRequest(url, options) {
-    // Add a custom header to identify requests sent by rep+ extension
+    // Add a custom header to identify requests sent by Poor Man's Suite
     // This allows us to filter them out from being captured
     if (!options.headers) {
         options.headers = {};
     }
-    options.headers['X-Rep-Plus-Replay'] = 'true';
+    options.headers['X-Poor-Mans-Suite-Replay'] = 'true';
     
     const startTime = performance.now();
     const response = await fetch(url, options);

@@ -1,6 +1,6 @@
 # Tests
 
-This directory contains unit tests for rep+.
+This directory contains unit tests for Poor Man's Suite.
 
 ## Running Tests
 
@@ -49,5 +49,4 @@ describe('myFunction', () => {
 
 ## Important
 
-**Test files are NOT included in Chrome Web Store builds.** They are excluded via `.gitignore` and should not be packaged with the extension.
-
+**Test files are NOT included in production extension packages.** The packaging scripts exclude them from the generated archive.

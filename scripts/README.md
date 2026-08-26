@@ -1,6 +1,6 @@
 # Packaging Scripts
 
-Scripts to create production packages for Chrome Web Store submission.
+Scripts to create production packages for Poor Man's Suite distribution.
 
 ## Usage
 
@@ -28,12 +28,12 @@ The package script automatically excludes:
 - ✅ Dev dependencies (`node_modules/`, `package.json`, `package-lock.json`)
 - ✅ Build config (`vitest.config.js`)
 - ✅ Git files (`.git/`, `.gitignore`)
-- ✅ Documentation (`CONTRIBUTING.md`, `ARCHITECTURE_REVIEW.md`)
-- ✅ Build artifacts (`dist/`, `build/`, `coverage/`)
+- ✅ Internal/development documentation (`Agent.md`, `CONTRIBUTING.md`, `ARCHITECTURE_REVIEW.md`)
+- ✅ Build artifacts and existing archives (`dist/`, `build/`, `coverage/`, `temp/`, `*.zip`)
 
 ## Output
 
-Creates `rep-plus-extension.zip` in the project root, ready for Chrome Web Store upload.
+Creates `poor-mans-suite-extension.zip` in the project root, ready for distribution.
 
 ## Build Workflow
 
@@ -45,4 +45,3 @@ npm run build
 npm test          # Run tests
 npm run package   # Create zip
 ```
-

@@ -102,7 +102,7 @@ export async function handleSendRequest() {
                     elements.rawResponseDisplay.innerHTML = `
                         <div style="padding: 20px; text-align: center;">
                             <h3 style="margin-top: 0;">Permission Required</h3>
-                            <p>To replay requests to any domain, Rep+ needs the <code>&lt;all_urls&gt;</code> permission.</p>
+                            <p>To replay requests to any domain, Poor Man's Suite needs the <code>&lt;all_urls&gt;</code> permission.</p>
                             <p>This permission is optional and only requested when you use this feature.</p>
                             <button id="grant-perm-btn" class="primary-btn" style="margin-top: 10px;">Grant Permission & Retry</button>
                         </div>

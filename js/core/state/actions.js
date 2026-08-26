@@ -192,7 +192,7 @@ export const requestActions = {
         }
         
         // Check for duplicates if enabled (default: true)
-        const removeDuplicatesEnabled = localStorage.getItem('rep_remove_duplicates') !== 'false';
+        const removeDuplicatesEnabled = localStorage.getItem('poor_mans_suite_remove_duplicates') !== 'false';
         if (removeDuplicatesEnabled && this.isDuplicate(request, state.requests)) {
             // Skip adding duplicate
             return null;

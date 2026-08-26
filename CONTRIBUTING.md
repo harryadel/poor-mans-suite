@@ -1,6 +1,6 @@
-# Contributing to rep+
+# Contributing to Poor Man's Suite
 
-Thank you for your interest in contributing! This guide will help you understand the codebase structure and how to add new features.
+Thank you for your interest in contributing to [Poor Man's Suite](https://github.com/harryadel/poor-mans-suite)! This guide will help you understand the codebase structure and how to add new features.
 
 ## Architecture Overview
 
@@ -139,7 +139,7 @@ AI can speed you up, but you’re responsible for the code you submit. Please:
 
 ## Adding Kingfisher Rules
 
-rep+ uses [Kingfisher](https://github.com/mongodb/kingfisher) rules for secret detection. These rules are stored locally in the `rules/` directory as YAML files.
+Poor Man's Suite uses [Kingfisher](https://github.com/mongodb/kingfisher) rules for secret detection. These rules are stored locally in the `rules/` directory as YAML files.
 
 ### Step 1: Get the Rule from Kingfisher
 
@@ -226,7 +226,7 @@ rules:
 ### Step 4: Test Your Rule
 
 1. **Reload the extension** in Chrome (`chrome://extensions/` → Reload)
-2. **Open DevTools** → rep+ tab → **Extractors** → **Secrets**
+2. **Open DevTools** → **Poor Man's Suite** tab → **Extractors** → **Secrets**
 3. **Capture requests** that contain the secret type you're testing
 4. **Click "Start Scan"** and verify your rule detects the secrets
 
@@ -297,4 +297,3 @@ Let's say you want to add detection for "MyAPI" tokens:
 - Check existing rules in `rules/` directory for examples
 
 Happy contributing! 🚀
-

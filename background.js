@@ -258,7 +258,7 @@ storedSessionUpdate = staleSessionCleanup;
 
 // Handle connections from DevTools panels
 chrome.runtime.onConnect.addListener((port) => {
-    if (port.name !== "rep-panel") return;
+    if (port.name !== "poor-mans-suite-panel") return;
     storedSessionUpdate = storedSessionUpdate.catch(() => {}).then(cleanupStoredOpenCodeSessions);
     console.log("DevTools panel connected");
     ports.add(port);
