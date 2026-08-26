@@ -130,6 +130,40 @@ describe('Bulk Replay response-marker UI', () => {
         expect(document.querySelector('.response-match-badge')?.dataset.mode).toBe('partial');
     });
 
+    it('clearly marks responses that miss every configured matcher', async () => {
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice';
+        addResponseMatcher('Welcome back');
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('.response-match-badge-negative')?.textContent).toBe('No match');
+        });
+
+        expect(document.querySelector('.matches-cell')?.classList.contains('empty')).toBe(false);
+        expect(document.querySelector('tr.has-no-response-match')).not.toBeNull();
+        expect(document.querySelector('tr.has-response-match')).toBeNull();
+    });
+
+    it('keeps the matches cell neutral when no matchers are configured', async () => {
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice';
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('.status-cell')?.textContent).toBe('200 OK');
+        });
+
+        expect(document.querySelector('.matches-cell')?.textContent).toBe('—');
+        expect(document.querySelector('.matches-cell')?.classList.contains('empty')).toBe(true);
+        expect(document.querySelector('.response-match-badge-negative')).toBeNull();
+        expect(document.querySelector('tr.has-no-response-match')).toBeNull();
+    });
+
     it('adds marked response text to the matcher configuration without changing the response', () => {
         setupBulkReplay();
         uiMocks.elements.rawResponseDisplay.textContent = 'Invalid username and password';
