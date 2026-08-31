@@ -41,6 +41,16 @@ function createDeferred() {
   return { promise, resolve: resolvePromise };
 }
 
+function addContinuationGuard(text) {
+  document.getElementById('add-response-matcher').click();
+  const rows = document.querySelectorAll('.response-matcher-row');
+  const row = rows[rows.length - 1];
+  const textInput = row.querySelector('.response-matcher-text');
+  textInput.value = text;
+  textInput.dispatchEvent(new Event('input'));
+  row.querySelector('.response-matcher-continuation-guard').click();
+}
+
 describe('Bulk Replay result sorting UI', () => {
   beforeEach(() => {
     document.body.innerHTML = `
@@ -51,6 +61,7 @@ describe('Bulk Replay result sorting UI', () => {
       <table id="bulk-results-table"><thead><tr>${sortHeaders}</tr></thead><tbody></tbody></table>
       <div id="bulk-progress-bar"></div>
       <span id="bulk-progress-text"></span>
+      <span id="bulk-run-status" role="status" aria-live="polite"></span>
       <button id="bulk-stop-btn"></button>
       <button id="bulk-close-btn"></button>
       <div class="vertical-resize-handle"></div>
@@ -118,6 +129,15 @@ describe('Bulk Replay result sorting UI', () => {
       'Sort by Matches'
     ]);
     expect(headers.every(header => header.querySelector('button')?.type === 'button')).toBe(true);
+  });
+
+  it('exposes an accessible run-status region', () => {
+    const panelHtml = readFileSync(resolve(process.cwd(), 'panel.html'), 'utf8');
+    const panelDocument = new DOMParser().parseFromString(panelHtml, 'text/html');
+    const runStatus = panelDocument.getElementById('bulk-run-status');
+
+    expect(runStatus?.getAttribute('role')).toBe('status');
+    expect(runStatus?.getAttribute('aria-live')).toBe('polite');
   });
 
   it('updates the active header state and sort direction', () => {
@@ -234,5 +254,47 @@ describe('Bulk Replay result sorting UI', () => {
       expect(document.querySelectorAll('#bulk-results-table tbody tr')).toHaveLength(2);
       expect(getResultIds()).toEqual([1, 2]);
     });
+  });
+
+  it('keeps a guard terminal marker on its execution result while sorting', async () => {
+    const firstResponse = createDeferred();
+    const secondResponse = createDeferred();
+    globalThis.fetch = vi.fn()
+      .mockImplementationOnce(() => firstResponse.promise)
+      .mockImplementationOnce(() => secondResponse.promise);
+
+    setupBulkReplay();
+    document.getElementById('bulk-replay-btn').click();
+    document.querySelector('.position-card .payload-list-input').value = 'zeta\nalpha';
+    addContinuationGuard('Invalid username');
+    document.getElementById('start-attack-btn').click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('#bulk-results-table tbody tr')).toHaveLength(1);
+    });
+    document.querySelector('th[data-sort-key="payload"] button').click();
+    firstResponse.resolve(createResponse(200, 'OK', 'Invalid username'));
+
+    await vi.waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+      expect(getResultIds()).toEqual([2, 1]);
+    });
+    secondResponse.resolve(createResponse(200, 'OK', 'Welcome back'));
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('bulk-run-status').textContent)
+        .toBe('Stopped at #2: no continuation guard matched');
+    });
+
+    expect(document.querySelector('.is-continuation-terminal')?.dataset.sortId).toBe('2');
+    expect(document.querySelector('.is-continuation-terminal')?.dataset.terminationReason)
+      .toBe('guard-mismatch');
+    expect(state.shouldStopBulk).toBe(false);
+    expect(state.shouldPauseBulk).toBe(false);
+
+    document.querySelector('th[data-sort-key="id"] button').click();
+    expect(getResultIds()).toEqual([1, 2]);
+    expect(document.querySelector('tr[data-sort-id="2"]')?.classList.contains('is-continuation-terminal'))
+      .toBe(true);
   });
 });

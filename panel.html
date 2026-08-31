@@ -493,7 +493,10 @@
             <!-- Bulk Replay Pane (Bottom) -->
             <div id="bulk-replay-pane" class="pane bulk-replay-pane" style="display: none;">
                 <div class="pane-header">
-                    <h3>Bulk Replay Results</h3>
+                    <div class="bulk-replay-title">
+                        <h3>Bulk Replay Results</h3>
+                        <span id="bulk-run-status" class="bulk-run-status" role="status" aria-live="polite"></span>
+                    </div>
                     <div class="header-actions">
                         <div class="progress-container">
                             <div id="bulk-progress-bar" class="progress-bar"></div>
@@ -646,7 +649,9 @@
                         Case sensitive
                     </label>
                     <p class="help-text">Contains matches text anywhere in the response body. Whole response requires
-                        the complete body to equal the matcher. Longer overlapping phrases take priority.</p>
+                        the complete body to equal the matcher. Longer overlapping phrases take priority. Mark Continue
+                        on one or more matchers to keep replaying while any marked matcher matches; replay stops after
+                        recording the first response that matches none.</p>
                 </div>
 
                 <!-- Payload Positions -->

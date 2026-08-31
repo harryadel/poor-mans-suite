@@ -20,6 +20,7 @@ describe('Bulk Replay configuration persistence', () => {
             <table id="bulk-results-table"><tbody></tbody></table>
             <div id="bulk-progress-bar"></div>
             <span id="bulk-progress-text"></span>
+            <span id="bulk-run-status" role="status" aria-live="polite"></span>
             <button id="bulk-stop-btn"></button>
             <button id="bulk-close-btn"></button>
             <div class="vertical-resize-handle"></div>
@@ -137,5 +138,42 @@ describe('Bulk Replay configuration persistence', () => {
 
         expect(document.getElementById('attack-type').value).toBe('battering-ram');
         expect(document.querySelector('#battering-ram-config .payload-list-input').value).toBe('shared-one\nshared-two');
+    });
+
+    it('retains, edits, and removes a continuation guard with its matcher', () => {
+        setupBulkReplay();
+
+        const replayButton = document.getElementById('bulk-replay-btn');
+        replayButton.click();
+        document.getElementById('add-response-matcher').click();
+
+        let row = document.querySelector('.response-matcher-row');
+        const textInput = row.querySelector('.response-matcher-text');
+        textInput.value = 'Invalid username';
+        textInput.dispatchEvent(new Event('input'));
+        row.querySelector('.response-matcher-continuation-guard').click();
+        document.querySelector('.close-modal').click();
+
+        replayButton.click();
+        row = document.querySelector('.response-matcher-row');
+        expect(row.querySelector('.response-matcher-continuation-guard').checked).toBe(true);
+        expect(state.responseMatchers).toEqual([{
+            text: 'Invalid username',
+            mode: 'partial',
+            isContinuationGuard: true
+        }]);
+
+        const retainedTextInput = row.querySelector('.response-matcher-text');
+        retainedTextInput.value = 'Invalid credentials';
+        retainedTextInput.dispatchEvent(new Event('input'));
+        expect(state.responseMatchers[0]).toEqual({
+            text: 'Invalid credentials',
+            mode: 'partial',
+            isContinuationGuard: true
+        });
+
+        row.querySelector('.response-matcher-remove').click();
+        expect(state.responseMatchers).toEqual([]);
+        expect(document.querySelector('.response-matcher-empty')?.textContent).toContain('No response matchers');
     });
 });

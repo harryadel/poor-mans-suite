@@ -10,7 +10,8 @@ import { requestReplayPermission } from '../../network/permissions.js';
 import {
     getMatchedResponseMatchers,
     highlightResponseMatches,
-    normalizeResponseMatchers
+    normalizeResponseMatchers,
+    responseMatcherMatches
 } from './response-matches.js';
 
 export function setupBulkReplay() {
@@ -24,6 +25,7 @@ export function setupBulkReplay() {
     const bulkSortHeaders = Array.from(bulkResultsTableElement.querySelectorAll('thead th[data-sort-key]'));
     const bulkProgressBar = document.getElementById('bulk-progress-bar');
     const bulkProgressText = document.getElementById('bulk-progress-text');
+    const bulkRunStatus = document.getElementById('bulk-run-status');
     const bulkStopBtn = document.getElementById('bulk-stop-btn');
     const bulkCloseBtn = document.getElementById('bulk-close-btn');
     const verticalResizeHandle = document.querySelector('.vertical-resize-handle');
@@ -32,6 +34,12 @@ export function setupBulkReplay() {
     const responseMatchCaseSensitiveInput = document.getElementById('response-match-case-sensitive');
     const numericSortKeys = new Set(['id', 'status', 'size', 'time']);
     let bulkSortState = { key: null, direction: 'ascending' };
+
+    function renderBulkRunStatus(message, status) {
+        if (!bulkRunStatus) return;
+        bulkRunStatus.textContent = message;
+        bulkRunStatus.dataset.state = status;
+    }
 
     function getRowSortValue(row, key) {
         const value = row.dataset[`sort${key.charAt(0).toUpperCase()}${key.slice(1)}`];
@@ -98,7 +106,8 @@ export function setupBulkReplay() {
         return normalizeResponseMatchers(
             Array.from(responseMatchersContainer.querySelectorAll('.response-matcher-row')).map(row => ({
                 text: row.querySelector('.response-matcher-text')?.value || '',
-                mode: row.querySelector('.response-matcher-mode')?.value || 'partial'
+                mode: row.querySelector('.response-matcher-mode')?.value || 'partial',
+                isContinuationGuard: row.querySelector('.response-matcher-continuation-guard')?.checked === true
             }))
         );
     }
@@ -112,7 +121,10 @@ export function setupBulkReplay() {
         responseMatchersContainer.appendChild(empty);
     }
 
-    function appendResponseMatcherRow(matcher = { text: '', mode: 'partial' }, focus = false) {
+    function appendResponseMatcherRow(
+        matcher = { text: '', mode: 'partial', isContinuationGuard: false },
+        focus = false
+    ) {
         if (!responseMatchersContainer) return;
 
         responseMatchersContainer.querySelector('.response-matcher-empty')?.remove();
@@ -136,6 +148,30 @@ export function setupBulkReplay() {
         `;
         modeSelect.value = matcher.mode === 'whole' ? 'whole' : 'partial';
 
+        const guardLabel = document.createElement('label');
+        guardLabel.className = 'response-matcher-guard-option';
+        guardLabel.title = 'Keep replaying while this matcher matches';
+
+        const guardInput = document.createElement('input');
+        guardInput.type = 'checkbox';
+        guardInput.className = 'response-matcher-continuation-guard';
+        guardInput.checked = matcher.isContinuationGuard === true;
+
+        const guardText = document.createElement('span');
+        guardText.textContent = 'Continue';
+        guardLabel.append(guardInput, guardText);
+
+        const updateGuardLabel = () => {
+            const matcherText = textInput.value.trim();
+            guardInput.setAttribute(
+                'aria-label',
+                matcherText
+                    ? `Use "${matcherText}" as a continuation guard`
+                    : 'Use this response matcher as a continuation guard'
+            );
+        };
+        updateGuardLabel();
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'response-matcher-remove';
@@ -146,15 +182,19 @@ export function setupBulkReplay() {
         const syncState = () => {
             state.responseMatchers = readResponseMatchers();
         };
-        textInput.addEventListener('input', syncState);
+        textInput.addEventListener('input', () => {
+            updateGuardLabel();
+            syncState();
+        });
         modeSelect.addEventListener('change', syncState);
+        guardInput.addEventListener('change', syncState);
         removeBtn.addEventListener('click', () => {
             row.remove();
             syncState();
             showEmptyResponseMatchers();
         });
 
-        row.append(textInput, modeSelect, removeBtn);
+        row.append(textInput, modeSelect, guardLabel, removeBtn);
         responseMatchersContainer.appendChild(row);
         if (focus) textInput.focus();
     }
@@ -172,7 +212,7 @@ export function setupBulkReplay() {
     function addMarkedResponseMatcher(text) {
         const matchers = normalizeResponseMatchers([
             ...readResponseMatchers(),
-            { text, mode: 'partial' }
+            { text, mode: 'partial', isContinuationGuard: false }
         ]);
         renderResponseMatcherConfig(matchers);
     }
@@ -181,7 +221,7 @@ export function setupBulkReplay() {
 
     addResponseMatcherBtn?.addEventListener('click', () => {
         state.responseMatchers = readResponseMatchers();
-        appendResponseMatcherRow({ text: '', mode: 'partial' }, true);
+        appendResponseMatcherRow({ text: '', mode: 'partial', isContinuationGuard: false }, true);
     });
 
     if (responseMatchCaseSensitiveInput) {
@@ -639,6 +679,7 @@ export function setupBulkReplay() {
     async function startBulkReplay() {
         const template = state.bulkReplayTemplate || elements.rawRequestInput.innerText;
         const responseMatchers = readResponseMatchers();
+        const continuationGuards = responseMatchers.filter(matcher => matcher.isContinuationGuard);
         const responseMatchCaseSensitive = responseMatchCaseSensitiveInput?.checked ?? true;
 
         state.responseMatchers = responseMatchers;
@@ -716,6 +757,7 @@ export function setupBulkReplay() {
         resetBulkSort();
         state.shouldStopBulk = false;
         state.shouldPauseBulk = false;
+        renderBulkRunStatus('Running', 'running');
 
         if (bulkStopBtn) {
             bulkStopBtn.dataset.state = 'running';
@@ -733,6 +775,9 @@ export function setupBulkReplay() {
 
         let completed = 0;
         const total = attackRequests.length;
+        let runTerminationReason = null;
+        bulkProgressBar.style.setProperty('--progress', '0%');
+        bulkProgressText.textContent = `0/${total}`;
 
         for (let i = 0; i < total; i++) {
             if (state.shouldStopBulk) break;
@@ -821,6 +866,7 @@ export function setupBulkReplay() {
             });
 
             const startTime = performance.now();
+            let terminationReason = null;
 
             try {
                 // We duplicate parse logic here or import it. 
@@ -894,6 +940,12 @@ export function setupBulkReplay() {
                 const responseMatches = getMatchedResponseMatchers(responseBody, responseMatchers, {
                     caseSensitive: responseMatchCaseSensitive
                 });
+                const continuationGuardMatched = continuationGuards.length === 0 || continuationGuards.some(
+                    matcher => responseMatcherMatches(responseBody, matcher, {
+                        caseSensitive: responseMatchCaseSensitive
+                    })
+                );
+                if (!continuationGuardMatched) terminationReason = 'guard-mismatch';
 
                 bulkResults[i] = {
                     requestContent: requestContent,
@@ -905,6 +957,7 @@ export function setupBulkReplay() {
                     duration: duration,
                     responseMatches,
                     responseMatchCaseSensitive,
+                    terminationReason,
                     error: null
                 };
 
@@ -925,6 +978,7 @@ export function setupBulkReplay() {
             } catch (error) {
                 const endTime = performance.now();
                 console.error(error);
+                if (continuationGuards.length > 0) terminationReason = 'guard-check-failed';
 
                 bulkResults[i] = {
                     requestContent: requestContent,
@@ -936,6 +990,7 @@ export function setupBulkReplay() {
                     duration: `${(endTime - startTime).toFixed(0)}ms`,
                     responseMatches: [],
                     responseMatchCaseSensitive,
+                    terminationReason,
                     error: error.message
                 };
 
@@ -952,10 +1007,28 @@ export function setupBulkReplay() {
                 applyBulkResultsSort();
             }
 
+            if (terminationReason) {
+                row.classList.add('is-continuation-terminal');
+                row.dataset.terminationReason = terminationReason;
+            }
+
             completed++;
             const progress = (completed / total) * 100;
             bulkProgressBar.style.setProperty('--progress', `${progress}%`);
             bulkProgressText.textContent = `${completed}/${total}`;
+
+            if (terminationReason) {
+                runTerminationReason = terminationReason;
+                const reason = terminationReason === 'guard-mismatch'
+                    ? 'no continuation guard matched'
+                    : 'continuation condition could not be checked';
+                renderBulkRunStatus(`Stopped at #${i + 1}: ${reason}`, 'stopped');
+                break;
+            }
+        }
+
+        if (!runTerminationReason && completed === total) {
+            renderBulkRunStatus('Completed', 'completed');
         }
     }
 }

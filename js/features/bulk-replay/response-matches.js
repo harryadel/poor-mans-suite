@@ -14,19 +14,43 @@ export function parseResponseMarkers(value) {
 export function normalizeResponseMatchers(matchers) {
     if (!Array.isArray(matchers)) return [];
 
-    const seen = new Set();
-    return matchers
-        .map(matcher => {
-            const text = String(typeof matcher === 'string' ? matcher : matcher?.text || '').trim();
-            const mode = typeof matcher === 'object' && matcher?.mode === 'whole' ? 'whole' : 'partial';
-            return { text, mode };
-        })
-        .filter(matcher => {
-            const key = `${matcher.mode}\u0000${matcher.text}`;
-            if (!matcher.text || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
+    const normalized = [];
+    const indexesByKey = new Map();
+
+    matchers.forEach(matcher => {
+        const text = String(typeof matcher === 'string' ? matcher : matcher?.text || '').trim();
+        if (!text) return;
+
+        const mode = typeof matcher === 'object' && matcher?.mode === 'whole' ? 'whole' : 'partial';
+        const isContinuationGuard = typeof matcher === 'object' && matcher?.isContinuationGuard === true;
+        const key = `${mode}\u0000${text}`;
+        const existingIndex = indexesByKey.get(key);
+
+        if (existingIndex !== undefined) {
+            if (isContinuationGuard) normalized[existingIndex].isContinuationGuard = true;
+            return;
+        }
+
+        indexesByKey.set(key, normalized.length);
+        normalized.push({ text, mode, isContinuationGuard });
+    });
+
+    return normalized;
+}
+
+export function responseMatcherMatches(text, matcher, { caseSensitive = true } = {}) {
+    const normalizedMatcher = normalizeResponseMatchers([matcher])[0];
+    if (!normalizedMatcher) return false;
+
+    const source = String(text ?? '');
+    const haystack = caseSensitive ? source : source.toLocaleLowerCase();
+    const needle = caseSensitive
+        ? normalizedMatcher.text
+        : normalizedMatcher.text.toLocaleLowerCase();
+
+    return normalizedMatcher.mode === 'whole'
+        ? haystack === needle
+        : haystack.includes(needle);
 }
 
 export function findResponseMatches(text, matchers, { caseSensitive = true } = {}) {
