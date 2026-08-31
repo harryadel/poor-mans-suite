@@ -15,6 +15,15 @@ vi.mock('../js/network/permissions.js', () => ({
 import { state } from '../js/core/state.js';
 import { setupBulkReplay } from '../js/features/bulk-replay/index.js';
 
+function createResponse(body, status = 200, statusText = 'OK') {
+    return {
+        status,
+        statusText,
+        headers: new Headers(),
+        text: vi.fn().mockResolvedValue(body)
+    };
+}
+
 describe('Bulk Replay response-marker UI', () => {
     beforeEach(() => {
         document.body.innerHTML = `
@@ -25,6 +34,7 @@ describe('Bulk Replay response-marker UI', () => {
             <table id="bulk-results-table"><tbody></tbody></table>
             <div id="bulk-progress-bar"></div>
             <span id="bulk-progress-text"></span>
+            <span id="bulk-run-status" role="status" aria-live="polite"></span>
             <button id="bulk-stop-btn"></button>
             <button id="bulk-close-btn"></button>
             <div class="vertical-resize-handle"></div>
@@ -60,6 +70,7 @@ describe('Bulk Replay response-marker UI', () => {
         });
 
         state.positionConfigs = [];
+        state.bulkReplayTemplate = '';
         state.currentAttackType = 'sniper';
         state.responseMatchers = [];
         state.responseMatchCaseSensitive = true;
@@ -75,14 +86,209 @@ describe('Bulk Replay response-marker UI', () => {
         });
     });
 
-    function addResponseMatcher(text, mode = 'partial') {
+    function addResponseMatcher(text, mode = 'partial', isContinuationGuard = false) {
         document.getElementById('add-response-matcher').click();
         const rows = document.querySelectorAll('.response-matcher-row');
         const row = rows[rows.length - 1];
-        row.querySelector('.response-matcher-text').value = text;
-        row.querySelector('.response-matcher-mode').value = mode;
+        const textInput = row.querySelector('.response-matcher-text');
+        const modeSelect = row.querySelector('.response-matcher-mode');
+        const guardInput = row.querySelector('.response-matcher-continuation-guard');
+        textInput.value = text;
+        textInput.dispatchEvent(new Event('input'));
+        modeSelect.value = mode;
+        modeSelect.dispatchEvent(new Event('change'));
+        if (isContinuationGuard) guardInput.click();
         return row;
     }
+
+    it('configures accessible continuation guards while new matchers remain display-only', () => {
+        setupBulkReplay();
+
+        const row = addResponseMatcher('Invalid username');
+        const guard = row.querySelector('.response-matcher-continuation-guard');
+
+        expect(guard.type).toBe('checkbox');
+        expect(guard.checked).toBe(false);
+        expect(guard.getAttribute('aria-label')).toContain('Invalid username');
+        expect(state.responseMatchers).toEqual([{
+            text: 'Invalid username',
+            mode: 'partial',
+            isContinuationGuard: false
+        }]);
+
+        guard.click();
+        expect(state.responseMatchers[0].isContinuationGuard).toBe(true);
+    });
+
+    it('announces normal guarded completion and resets status for a new attack', async () => {
+        setupBulkReplay();
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice';
+        addResponseMatcher('Invalid username', 'partial', true);
+
+        document.getElementById('start-attack-btn').click();
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent).toBe('Completed');
+        });
+
+        expect(document.getElementById('bulk-run-status').dataset.state).toBe('completed');
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('1/1');
+
+        let resolveResponse;
+        globalThis.fetch = vi.fn().mockImplementation(() => new Promise(resolve => {
+            resolveResponse = resolve;
+        }));
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent).toBe('Running');
+        });
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('0/1');
+        expect(document.querySelector('.is-continuation-terminal')).toBeNull();
+
+        resolveResponse(createResponse('Invalid username'));
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent).toBe('Completed');
+        });
+    });
+
+    it('continues while any independent guard matches and retains the first mismatch', async () => {
+        globalThis.fetch = vi.fn()
+            .mockResolvedValueOnce(createResponse('Invalid username and password'))
+            .mockResolvedValueOnce(createResponse('Try again'))
+            .mockResolvedValueOnce(createResponse('Welcome back'));
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice\nbob\ncarol\ndave';
+        addResponseMatcher('Invalid username', 'partial', true);
+        addResponseMatcher('Invalid username and password');
+        addResponseMatcher('Try again', 'partial', true);
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent)
+                .toBe('Stopped at #3: no continuation guard matched');
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+        expect(document.querySelectorAll('#bulk-results-table tbody tr')).toHaveLength(3);
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('3/4');
+        expect(document.querySelector('tr[data-sort-id="1"] .matches-cell').textContent)
+            .toBe('Invalid username and password');
+        expect(document.querySelector('.is-continuation-terminal')?.dataset.sortId).toBe('3');
+        expect(document.querySelector('.is-continuation-terminal')?.dataset.terminationReason)
+            .toBe('guard-mismatch');
+        expect(state.shouldStopBulk).toBe(false);
+        expect(state.shouldPauseBulk).toBe(false);
+    });
+
+    it('stops on an empty response when every continuation guard is nonempty', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue(createResponse(''));
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice\nbob';
+        addResponseMatcher('Invalid username', 'partial', true);
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent)
+                .toBe('Stopped at #1: no continuation guard matched');
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('1/2');
+        expect(document.querySelector('.is-continuation-terminal')?.dataset.sortId).toBe('1');
+    });
+
+    it.each([
+        [
+            'fetch failure',
+            () => vi.fn().mockRejectedValue(new Error('Network unavailable')),
+            'Network unavailable'
+        ],
+        [
+            'response-body failure',
+            () => vi.fn().mockResolvedValue({
+                ...createResponse(''),
+                text: vi.fn().mockRejectedValue(new Error('Body unavailable'))
+            }),
+            'Body unavailable'
+        ]
+    ])('stops a guarded replay distinctly after a %s', async (_name, createFetch, errorMessage) => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        globalThis.fetch = createFetch();
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice\nbob';
+        addResponseMatcher('Invalid username', 'partial', true);
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent)
+                .toBe('Stopped at #1: continuation condition could not be checked');
+        });
+
+        const terminalRow = document.querySelector('.is-continuation-terminal');
+        expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+        expect(terminalRow.dataset.terminationReason).toBe('guard-check-failed');
+        expect(terminalRow.querySelector('.status-cell').title).toBe(errorMessage);
+        expect(terminalRow.querySelector('.response-match-badge-not-checked')?.textContent).toBe('Not checked');
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('1/2');
+
+        terminalRow.click();
+        expect(uiMocks.elements.rawResponseDisplay.textContent).toBe(errorMessage);
+        consoleError.mockRestore();
+    });
+
+    it('stops a guarded replay after request parsing prevents matcher evaluation', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        uiMocks.elements.rawRequestInput.innerText = 'GET /login?username=§candidate§ HTTP/1.1\n\n';
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice\nbob';
+        addResponseMatcher('Invalid username', 'partial', true);
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent)
+                .toBe('Stopped at #1: continuation condition could not be checked');
+        });
+
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+        expect(document.querySelector('.is-continuation-terminal .status-cell').title)
+            .toBe('Host header missing');
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('1/2');
+        consoleError.mockRestore();
+    });
+
+    it('preserves existing continuation after an unguarded request error', async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        globalThis.fetch = vi.fn()
+            .mockRejectedValueOnce(new Error('Network unavailable'))
+            .mockResolvedValueOnce(createResponse('Welcome back'));
+        setupBulkReplay();
+
+        document.getElementById('bulk-replay-btn').click();
+        document.querySelector('.position-card .payload-list-input').value = 'alice\nbob';
+        addResponseMatcher('Invalid username');
+        document.getElementById('start-attack-btn').click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('bulk-run-status').textContent).toBe('Completed');
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+        expect(document.querySelectorAll('#bulk-results-table tbody tr')).toHaveLength(2);
+        expect(document.querySelector('tr[data-sort-id="1"] .response-match-badge-not-checked')?.textContent)
+            .toBe('Not checked');
+        expect(document.querySelector('.is-continuation-terminal')).toBeNull();
+        expect(document.getElementById('bulk-progress-text').textContent).toBe('2/2');
+        consoleError.mockRestore();
+    });
 
     it('shows only the longest overlapping marker and highlights it in the opened response', async () => {
         setupBulkReplay();
@@ -176,7 +382,12 @@ describe('Bulk Replay response-marker UI', () => {
         const row = document.querySelector('.response-matcher-row');
         expect(row.querySelector('.response-matcher-text').value).toBe('Invalid username');
         expect(row.querySelector('.response-matcher-mode').value).toBe('partial');
-        expect(state.responseMatchers).toEqual([{ text: 'Invalid username', mode: 'partial' }]);
+        expect(row.querySelector('.response-matcher-continuation-guard').checked).toBe(false);
+        expect(state.responseMatchers).toEqual([{
+            text: 'Invalid username',
+            mode: 'partial',
+            isContinuationGuard: false
+        }]);
         expect(uiMocks.elements.rawResponseDisplay.textContent).toBe('Invalid username and password');
     });
 });

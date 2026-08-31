@@ -6,7 +6,8 @@ import {
     getMatchedResponseMatchers,
     highlightResponseMatches,
     normalizeResponseMatchers,
-    parseResponseMarkers
+    parseResponseMarkers,
+    responseMatcherMatches
 } from '../js/features/bulk-replay/response-matches.js';
 
 describe('Bulk Replay response markers', () => {
@@ -35,20 +36,24 @@ describe('Bulk Replay response markers', () => {
         expect(findResponseMatches('invalid username', markers, { caseSensitive: false })).toHaveLength(1);
     });
 
-    it('normalizes matcher modes and removes exact duplicates', () => {
+    it('normalizes matcher modes, guard flags, and exact duplicates', () => {
         expect(normalizeResponseMatchers([
             { text: ' Invalid username ', mode: 'partial' },
-            { text: 'Invalid username', mode: 'partial' },
+            { text: 'Invalid username', mode: 'partial', isContinuationGuard: true },
             { text: 'Invalid username', mode: 'whole' }
         ])).toEqual([
-            { text: 'Invalid username', mode: 'partial' },
-            { text: 'Invalid username', mode: 'whole' }
+            { text: 'Invalid username', mode: 'partial', isContinuationGuard: true },
+            { text: 'Invalid username', mode: 'whole', isContinuationGuard: false }
+        ]);
+
+        expect(normalizeResponseMatchers(['Welcome back'])).toEqual([
+            { text: 'Welcome back', mode: 'partial', isContinuationGuard: false }
         ]);
     });
 
     it('supports contains and whole-response matching per matcher', () => {
-        const contains = [{ text: 'Invalid username', mode: 'partial' }];
-        const whole = [{ text: 'Invalid username', mode: 'whole' }];
+        const contains = [{ text: 'Invalid username', mode: 'partial', isContinuationGuard: false }];
+        const whole = [{ text: 'Invalid username', mode: 'whole', isContinuationGuard: false }];
 
         expect(getMatchedResponseMatchers('Invalid username and password', contains)).toEqual(contains);
         expect(getMatchedResponseMatchers('Invalid username and password', whole)).toEqual([]);
@@ -56,11 +61,34 @@ describe('Bulk Replay response markers', () => {
     });
 
     it('applies case sensitivity and exact whitespace to whole-response matchers', () => {
-        const whole = [{ text: 'Invalid username', mode: 'whole' }];
+        const whole = [{ text: 'Invalid username', mode: 'whole', isContinuationGuard: false }];
 
         expect(getMatchedResponseMatchers('invalid username', whole)).toEqual([]);
         expect(getMatchedResponseMatchers('invalid username', whole, { caseSensitive: false })).toEqual(whole);
         expect(getMatchedResponseMatchers('Invalid username\n', whole)).toEqual([]);
+    });
+
+    it('evaluates a matcher independently from overlap-aware display matches', () => {
+        const shorterGuard = {
+            text: 'Invalid username',
+            mode: 'partial',
+            isContinuationGuard: true
+        };
+        const longerMatcher = {
+            text: 'Invalid username and password',
+            mode: 'partial',
+            isContinuationGuard: false
+        };
+        const responseBody = 'Invalid username and password';
+
+        expect(getMatchedResponseMatchers(responseBody, [shorterGuard, longerMatcher])).toEqual([
+            longerMatcher
+        ]);
+        expect(responseMatcherMatches(responseBody, shorterGuard)).toBe(true);
+        expect(responseMatcherMatches('invalid username', shorterGuard)).toBe(false);
+        expect(responseMatcherMatches('invalid username', shorterGuard, { caseSensitive: false })).toBe(true);
+        expect(responseMatcherMatches('Invalid username\n', { ...shorterGuard, mode: 'whole' })).toBe(false);
+        expect(responseMatcherMatches('', shorterGuard)).toBe(false);
     });
 
     it('highlights matches without replacing existing response markup', () => {
