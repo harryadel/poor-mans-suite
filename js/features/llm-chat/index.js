@@ -23,12 +23,13 @@ import {
 } from './bulk-replay-drafts.js';
 
 let chatHistory = [];
-let isStreaming = false;
 let lastSelectedRequestIndex = -1; // Track last selected request to prevent duplicate messages
 let lastSelectedRequest = null;
 let responseObservationsByOwner = new Map();
 let chatTokenEstimateElement = null; // Reference to token estimate element
 let activeChat = null;
+let nextChatTurnId = 0;
+let activePagehideHandler = null;
 let nextBulkReplayCorrelationId = 0;
 
 // Per-request chat history storage
@@ -71,10 +72,30 @@ function parseBulkReplayAction(text, turn) {
     };
 }
 
-function cancelActiveChat(request = null) {
-    if (!activeChat || (request && activeChat.owner !== request)) return;
-    activeChat.controller.abort();
+function finishActiveChat(turnState, outcome) {
+    if (!turnState || activeChat !== turnState) return false;
+
     activeChat = null;
+    turnState.phase = outcome;
+    try {
+        turnState.onFinalize?.(turnState, outcome);
+    } catch (error) {
+        console.error('Chat finalization rendering error:', error);
+    }
+    return true;
+}
+
+function cancelActiveChat(request = null) {
+    const turnState = activeChat;
+    if (!turnState || (request && turnState.owner !== request)) return false;
+
+    turnState.controller.abort();
+    if (turnState.provider === 'opencode') {
+        resetOpenCodeConversation(turnState.owner).catch(error => {
+            console.warn('Failed to cancel OpenCode session:', error);
+        });
+    }
+    return finishActiveChat(turnState, 'canceled');
 }
 
 function getConversationOwner() {
@@ -302,7 +323,7 @@ function summarizePreviousChat(prevChat) {
     if (!prevChat || prevChat.length === 0) return 'No previous conversation.';
     
     // Extract key findings from assistant messages
-    const assistantMessages = prevChat.filter(msg => msg.role === 'assistant');
+    const assistantMessages = prevChat.filter(msg => msg.role === 'assistant' && !msg.excludeFromProvider);
     if (assistantMessages.length === 0) return 'Previous conversation had no assistant responses.';
     
     // Get the last assistant message as summary (most relevant)
@@ -465,6 +486,7 @@ function loadChatHistoryForRequest(request) {
  * Keeps first 2 messages (context) and last N messages (recent)
  */
 function compressChatHistory(history = chatHistory) {
+    history = history.filter(message => !message.excludeFromProvider);
     if (history.length <= MAX_CHAT_HISTORY) {
         return history;
     }
@@ -505,32 +527,46 @@ function getConversationMessages() {
     return messages;
 }
 
-async function sendChatMessage(userMessage, turn, loadingElement, onUpdate, onComplete, onError) {
-    if (isStreaming) {
-        onError('Please wait for the current message to complete.');
-        return;
-    }
-    
+async function sendChatMessage(userMessage, turn, handlers) {
+    if (activeChat) return false;
+
     const request = turn?.owner;
     const snapshot = turn?.snapshot;
     if (!request) {
-        onError('No request selected. Please select a request first.');
-        return;
+        handlers.onRejected('No request selected. Please select a request first.');
+        return false;
     }
-    
-    const settings = getAISettings();
+
+    let settings;
+    try {
+        settings = getAISettings();
+    } catch (error) {
+        handlers.onRejected(error.message || 'Failed to load AI settings.');
+        return false;
+    }
+
     if (!settings.apiKey || (['local', 'opencode'].includes(settings.provider) && !settings.model)) {
-        onError(settings.provider === 'opencode'
+        handlers.onRejected(settings.provider === 'opencode'
             ? 'OpenCode is not configured. Test the connection and select a model in settings.'
             : 'AI API key not configured. Please configure it in settings.');
-        return;
+        return false;
     }
-    
-    isStreaming = true;
+
     const controller = new AbortController();
-    activeChat = { owner: request, snapshot, controller };
-    
+    const turnState = {
+        id: `chat-turn-${++nextChatTurnId}`,
+        owner: request,
+        snapshot,
+        provider: settings.provider,
+        controller,
+        phase: 'pending',
+        partialText: '',
+        onFinalize: handlers.onFinalize
+    };
+    activeChat = turnState;
+
     try {
+        handlers.onStart(turnState);
         // Build the full user prompt with request context
         const fullUserPrompt = buildUserPrompt(userMessage, snapshot);
         const systemPrompt = turn.bulkDraftRequested
@@ -562,98 +598,56 @@ async function sendChatMessage(userMessage, turn, loadingElement, onUpdate, onCo
         // Use proper message array for rolling context
         const requestUrl = new URL(request.request.url);
         const sessionTitle = `Poor Man's Suite ${request.request.method || 'GET'} ${requestUrl.hostname}${requestUrl.pathname}`.slice(0, 120);
-        await streamChatWithMessages(
+        const returnedResponse = await streamChatWithMessages(
             settings.apiKey,
             settings.model,
             messages,
             (text) => {
+                if (activeChat !== turnState || controller.signal.aborted) return;
                 assistantResponse = text;
-                // Update the loading element with markdown if available
-                if (loadingElement && getConversationOwner() === request && loadingElement.isConnected) {
-                    if (window.marked && window.marked.parse) {
-                        try {
-                            // Prepare markdown for streaming (handle incomplete code blocks)
-                            const preparedText = prepareMarkdownForStreaming(text);
-                            // Always parse markdown during streaming to show rendered content
-                            const parsed = renderMarkdown(preparedText, window.marked);
-                            if (parsed && typeof parsed === 'string') {
-                                loadingElement.innerHTML = parsed;
-                                // Apply syntax highlighting to code blocks if highlight.js is available
-                                if (window.hljs) {
-                                    loadingElement.querySelectorAll('pre code').forEach((block) => {
-                                        if (!block.classList.contains('hljs')) {
-                                            try {
-                                                window.hljs.highlightElement(block);
-                                            } catch (e) {
-                                                // Ignore highlighting errors during streaming
-                                            }
-                                        }
-                                    });
-                                }
-                            } else {
-                                // If parsing returns something unexpected, try direct parse
-                                loadingElement.innerHTML = renderMarkdown(text, window.marked);
-                                if (window.hljs) {
-                                    loadingElement.querySelectorAll('pre code').forEach((block) => {
-                                        if (!block.classList.contains('hljs')) {
-                                            try {
-                                                window.hljs.highlightElement(block);
-                                            } catch (e) {
-                                                // Ignore highlighting errors
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                        } catch (e) {
-                            // If parsing fails, try without preparation
-                            try {
-                                loadingElement.innerHTML = renderMarkdown(text, window.marked);
-                                if (window.hljs) {
-                                    loadingElement.querySelectorAll('pre code').forEach((block) => {
-                                        if (!block.classList.contains('hljs')) {
-                                            try {
-                                                window.hljs.highlightElement(block);
-                                            } catch (e) {
-                                                // Ignore highlighting errors
-                                            }
-                                        }
-                                    });
-                                }
-                            } catch (e2) {
-                                // Even on error, try to escape and show as HTML to avoid raw markdown
-                                const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                                loadingElement.innerHTML = escaped.replace(/\n/g, '<br>');
-                            }
-                        }
-                    } else {
-                        // Marked not available - escape and show as HTML
-                        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                        loadingElement.innerHTML = escaped.replace(/\n/g, '<br>');
-                    }
-                }
-                onUpdate(text, turn);
+                turnState.phase = 'streaming';
+                turnState.partialText = text;
+                handlers.onUpdate(text, turn, turnState);
             },
             settings.provider,
             { conversationKey: request, sessionTitle, signal: controller.signal }
         );
 
-        if (controller.signal.aborted || activeChat?.controller !== controller) return;
-        
+        if (controller.signal.aborted || activeChat !== turnState) return false;
+        if (!assistantResponse && typeof returnedResponse === 'string') {
+            assistantResponse = returnedResponse;
+            turnState.phase = 'streaming';
+            turnState.partialText = returnedResponse;
+        }
+
         // Local action metadata never enters provider history or transcript exports.
         const bulkReplayAction = parseBulkReplayAction(assistantResponse, turn);
         const assistantMessage = addMessageToHistory('assistant', assistantResponse, request, {
             ...(bulkReplayAction ? { bulkReplayAction } : {})
         });
-        
-        onComplete(assistantResponse, turn, assistantMessage);
+
+        try {
+            handlers.onComplete(assistantResponse, turn, assistantMessage, turnState);
+        } catch (renderError) {
+            console.error('Chat completion rendering error:', renderError);
+        }
+        finishActiveChat(turnState, 'completed');
+        return true;
     } catch (error) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || activeChat !== turnState) return false;
         console.error('Chat error:', error);
-        onError(error.message || 'Failed to send message. Please check your API key and try again.');
-    } finally {
-        if (activeChat?.controller === controller) activeChat = null;
-        isStreaming = false;
+        const errorText = error.message || 'Failed to send message. Please check your API key and try again.';
+        const errorMessage = addMessageToHistory('assistant', `Error: ${errorText}`, request, {
+            isError: true,
+            excludeFromProvider: true
+        });
+        try {
+            handlers.onError(errorText, turn, errorMessage, turnState);
+        } catch (renderError) {
+            console.error('Chat error rendering error:', renderError);
+        }
+        finishActiveChat(turnState, 'failed');
+        return false;
     }
 }
 
@@ -708,6 +702,140 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         console.error('LLM Chat: Toggle button not found');
         return;
     }
+
+    const SCROLL_BOTTOM_TOLERANCE = 24;
+    const sendButtonDefaultTitle = chatSendBtn?.title || 'Send message (Enter)';
+    const prepareButtonDefaultTitle = chatPrepareBulkReplayBtn?.title || 'Prepare a Bulk Replay draft';
+    const requestFrame = typeof window.requestAnimationFrame === 'function'
+        ? callback => window.requestAnimationFrame(callback)
+        : callback => window.setTimeout(callback, 0);
+    const cancelFrame = typeof window.cancelAnimationFrame === 'function'
+        ? frameId => window.cancelAnimationFrame(frameId)
+        : frameId => window.clearTimeout(frameId);
+    let followLatest = true;
+    let scrollFrameId = null;
+    let pendingScrollRequest = null;
+    let renderGeneration = 0;
+
+    if (chatMessages) {
+        chatMessages.setAttribute('role', 'log');
+        chatMessages.setAttribute('aria-label', chatMessages.getAttribute('aria-label') || 'AI conversation');
+        chatMessages.setAttribute('aria-live', 'polite');
+        chatMessages.setAttribute('aria-relevant', 'additions text');
+        chatMessages.setAttribute('aria-busy', 'false');
+        if (!chatMessages.hasAttribute('tabindex')) chatMessages.tabIndex = 0;
+    }
+
+    function isNearChatBottom() {
+        if (!chatMessages) return true;
+        return chatMessages.scrollHeight - chatMessages.clientHeight - chatMessages.scrollTop <= SCROLL_BOTTOM_TOLERANCE;
+    }
+
+    function scheduleScrollToLatest({ force = false } = {}) {
+        if (!chatMessages || (!force && !followLatest)) return;
+
+        if (force) followLatest = true;
+        pendingScrollRequest = {
+            force: force || pendingScrollRequest?.force === true,
+            generation: renderGeneration
+        };
+        if (scrollFrameId !== null) return;
+
+        scrollFrameId = requestFrame(() => {
+            scrollFrameId = null;
+            const request = pendingScrollRequest;
+            pendingScrollRequest = null;
+            if (!request || request.generation !== renderGeneration) return;
+            if (!request.force && !followLatest) return;
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            followLatest = true;
+        });
+    }
+
+    function renderAssistantContent(messageDiv, text, { streaming = false, final = false } = {}) {
+        const content = messageDiv.querySelector('.llm-chat-response-content') || messageDiv;
+        const sourceText = text || '';
+
+        if (window.marked && sourceText) {
+            try {
+                const markdown = streaming ? prepareMarkdownForStreaming(sourceText) : sourceText;
+                content.innerHTML = renderMarkdown(markdown, window.marked);
+            } catch (error) {
+                content.textContent = sourceText;
+            }
+        } else {
+            content.textContent = sourceText;
+        }
+
+        if (window.hljs) {
+            content.querySelectorAll('pre code').forEach(block => {
+                if (block.classList.contains('hljs')) return;
+                try {
+                    window.hljs.highlightElement(block);
+                } catch (error) {
+                    // Keep rendered code readable when highlighting fails.
+                }
+            });
+        }
+        if (final) addCopyButtonsToCodeBlocks(content);
+    }
+
+    function getActiveTurnElement(turnState) {
+        if (!turnState) return null;
+        return document.getElementById(turnState.id);
+    }
+
+    function renderActiveTurn(turnState, { forceScroll = false } = {}) {
+        if (!chatMessages || !turnState || turnState.owner !== getConversationOwner()) return null;
+
+        let messageDiv = getActiveTurnElement(turnState);
+        if (!messageDiv) {
+            messageDiv = document.createElement('div');
+            messageDiv.id = turnState.id;
+            messageDiv.innerHTML = `
+                <div class="llm-chat-processing-status" role="status" aria-live="polite" aria-atomic="true">
+                    <span class="llm-chat-processing-spinner" aria-hidden="true"></span>
+                    <span class="llm-chat-processing-label"></span>
+                </div>
+                <div class="llm-chat-response-content"></div>
+            `;
+            chatMessages.appendChild(messageDiv);
+        }
+
+        messageDiv.className = 'chat-message chat-message-assistant processing';
+        messageDiv.dataset.phase = turnState.phase;
+        const label = messageDiv.querySelector('.llm-chat-processing-label');
+        if (label) {
+            label.textContent = turnState.phase === 'streaming' ? 'Generating answer...' : 'Thinking...';
+        }
+        renderAssistantContent(messageDiv, turnState.partialText, { streaming: turnState.phase === 'streaming' });
+        scheduleScrollToLatest({ force: forceScroll });
+        return messageDiv;
+    }
+
+    function syncProcessingUI({ forceScroll = false } = {}) {
+        const visibleTurn = activeChat?.owner === getConversationOwner() ? activeChat : null;
+        if (chatMessages) chatMessages.setAttribute('aria-busy', visibleTurn ? 'true' : 'false');
+        if (visibleTurn) renderActiveTurn(visibleTurn, { forceScroll });
+        updateSendButtonState();
+    }
+
+    function handleTurnFinalized(turnState, outcome) {
+        const messageDiv = getActiveTurnElement(turnState);
+        if (outcome === 'canceled') messageDiv?.remove();
+        if (chatMessages && turnState.owner === getConversationOwner()) {
+            chatMessages.setAttribute('aria-busy', 'false');
+        }
+        updateSendButtonState();
+        scheduleScrollToLatest();
+    }
+
+    if (chatMessages) {
+        chatMessages.addEventListener('scroll', () => {
+            followLatest = isNearChatBottom();
+        });
+    }
     
     // Initialize chat pane to be hidden by default
     const responsePane = document.querySelector('.response-pane');
@@ -735,9 +863,7 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
             }
             if (!getConversationOwner()) {
                 clearChatHistory();
-                if (chatMessages) {
-                    chatMessages.innerHTML = '<div class="chat-message chat-message-system">Select a request to start chatting with the LLM about it.</div>';
-                }
+                renderChatHistory();
             }
         } else {
             const requestResponseResizeHandle = document.querySelector('.pane-resize-handle:not(.chat-resize-handle)');
@@ -863,9 +989,20 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
     
     // Update send button state
     function updateSendButtonState() {
-        if (!chatInput || !chatSendBtn) return;
-        const hasText = chatInput.value.trim().length > 0;
-        chatSendBtn.disabled = !hasText;
+        const isProcessing = Boolean(activeChat);
+        const hasText = Boolean(chatInput?.value.trim());
+        const busyTitle = activeChat?.owner === getConversationOwner()
+            ? 'Poor Man\'s Suite is generating an answer.'
+            : 'Another request conversation is still generating an answer.';
+
+        if (chatSendBtn) {
+            chatSendBtn.disabled = isProcessing || !hasText;
+            chatSendBtn.title = isProcessing ? busyTitle : sendButtonDefaultTitle;
+        }
+        if (chatPrepareBulkReplayBtn) {
+            chatPrepareBulkReplayBtn.disabled = isProcessing;
+            chatPrepareBulkReplayBtn.title = isProcessing ? busyTitle : prepareButtonDefaultTitle;
+        }
     }
     
     // Send a typed or programmatic message through the same request-scoped conversation.
@@ -874,6 +1011,10 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
 
         message = (message || '').trim();
         if (!message) return Promise.resolve(false);
+        if (activeChat) {
+            updateSendButtonState();
+            return Promise.resolve(false);
+        }
 
         const snapshot = captureTurnSnapshot();
         if (!snapshot) {
@@ -889,51 +1030,32 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
             ...(bulkDraftRequested ? { correlationId: createBulkReplayCorrelationId() } : {})
         });
 
-        addUserMessage(message);
-        
-        // Show loading state
-        const loadingId = addAssistantMessage('', true);
-        const loadingElement = document.getElementById(loadingId);
-        
         // Send to LLM
         return sendChatMessage(
             message,
             turn,
-            loadingElement, // Pass loading element for updates
-            (text, activeTurn) => {
-                // Update streaming response - markdown is handled in sendChatMessage
-                // Auto-scroll during streaming
-                if (chatMessages && getConversationOwner() === activeTurn.owner) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-            },
-            (fullText, completedTurn, assistantMessage) => {
-                if (getConversationOwner() !== completedTurn.owner) return;
-                if (!loadingElement?.isConnected) {
-                    loadChatHistoryForRequest(completedTurn.owner);
-                    renderChatHistory();
-                    return;
-                }
+            {
+                onRejected(error) {
+                    addSystemMessage(error, { forceScroll: true });
+                },
+                onStart(turnState) {
+                    addUserMessage(message, { forceScroll: true });
+                    renderActiveTurn(turnState, { forceScroll: true });
+                    syncProcessingUI();
+                },
+                onUpdate(text, activeTurn, turnState) {
+                    if (getConversationOwner() === activeTurn.owner) renderActiveTurn(turnState);
+                },
+                onComplete(fullText, completedTurn, assistantMessage, turnState) {
+                    if (getConversationOwner() !== completedTurn.owner) return;
+                    const loadingElement = getActiveTurnElement(turnState) || renderActiveTurn(turnState);
+                    if (!loadingElement) return;
 
-                // Complete - final markdown update
-                if (loadingElement) {
-                    loadingElement.classList.remove('loading');
-                    // Clear any pending timeout from streaming
-                    if (loadingElement._copyButtonTimeout) {
-                        clearTimeout(loadingElement._copyButtonTimeout);
-                        delete loadingElement._copyButtonTimeout;
-                    }
-                    if (window.marked) {
-                        try {
-                            loadingElement.innerHTML = renderMarkdown(fullText, window.marked);
-                            // Add copy buttons to code blocks after markdown is parsed (final update)
-                            addCopyButtonsToCodeBlocks(loadingElement);
-                        } catch (e) {
-                            loadingElement.textContent = fullText;
-                        }
-                    } else {
-                        loadingElement.textContent = fullText;
-                    }
+                    // Complete - final markdown update
+                    loadingElement.classList.remove('processing');
+                    loadingElement.removeAttribute('data-phase');
+                    loadingElement.querySelector('.llm-chat-processing-status')?.remove();
+                    renderAssistantContent(loadingElement, fullText, { final: true });
 
                     renderBulkReplayAction(loadingElement, assistantMessage);
                     
@@ -1048,26 +1170,21 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
                             messageContainer.appendChild(actionsDiv);
                         }
                     }
-                }
-                // Scroll to bottom
-                if (chatMessages) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-            },
-            (error) => {
-                if (getConversationOwner() !== turn.owner || !loadingElement?.isConnected) return;
-                // Error
-                if (loadingElement) {
-                    loadingElement.classList.remove('loading');
-                    loadingElement.textContent = `Error: ${error}`;
-                    loadingElement.classList.add('error');
-                }
-                // Scroll to bottom to show error
-                if (chatMessages) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
+                    scheduleScrollToLatest();
+                },
+                onError(error, failedTurn, errorMessage, turnState) {
+                    if (getConversationOwner() !== failedTurn.owner) return;
+                    const loadingElement = getActiveTurnElement(turnState) || renderActiveTurn(turnState);
+                    if (!loadingElement) return;
+
+                    loadingElement.className = 'chat-message chat-message-assistant error';
+                    loadingElement.removeAttribute('data-phase');
+                    loadingElement.textContent = errorMessage.content;
+                    scheduleScrollToLatest();
+                },
+                onFinalize: handleTurnFinalized
             }
-        ).then(() => true);
+        );
     }
 
     function handleSend() {
@@ -1076,26 +1193,28 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         const message = chatInput.value.trim();
         if (!message) return Promise.resolve(false);
 
-        if (getConversationOwner()) {
+        const submission = submitMessage(message);
+        if (activeChat?.owner === getConversationOwner()) {
             chatInput.value = '';
             autoResizeTextarea();
             updateSendButtonState();
         }
 
-        return submitMessage(message);
+        return submission;
     }
 
     function handlePrepareBulkReplay() {
         if (!chatInput) return Promise.resolve(false);
 
         const message = chatInput.value.trim() || DEFAULT_BULK_REPLAY_REQUEST;
-        if (getConversationOwner()) {
+        const submission = submitMessage(message, { bulkDraftRequested: true });
+        if (activeChat?.owner === getConversationOwner()) {
             chatInput.value = '';
             autoResizeTextarea();
             updateSendButtonState();
         }
 
-        return submitMessage(message, { bulkDraftRequested: true });
+        return submission;
     }
     
     if (chatSendBtn) {
@@ -1117,7 +1236,7 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (chatInput.value.trim()) {
+                if (chatInput.value.trim() && !chatSendBtn?.disabled) {
                     handleSend();
                 }
             }
@@ -1143,15 +1262,10 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
             clearChatHistory();
             referencedRequests.clear();
             updateReferenceUI();
-            
-            if (chatMessages) {
-                chatMessages.innerHTML = '';
-            }
-            if (owner) {
-                addSystemMessage('Chat cleared. How can I help you with this request?');
-            } else {
-                addSystemMessage('Select a request to start chatting. I can help you understand, modify, or debug HTTP requests and responses.');
-            }
+
+            renderChatHistory(owner
+                ? { emptyMessage: 'Chat cleared. How can I help you with this request?' }
+                : undefined);
         });
     }
     
@@ -1226,11 +1340,13 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         
         // Insert at the top of messages
         chatMessages.insertBefore(notice, chatMessages.firstChild);
+        scheduleScrollToLatest();
         
         // Auto-dismiss after 5 seconds
         setTimeout(() => {
             if (notice.parentElement) {
                 notice.remove();
+                scheduleScrollToLatest();
             }
         }, 5000);
     }
@@ -1396,6 +1512,9 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         syncConversationOwner();
     });
     events.on(EVENT_NAMES.REPEATER_CONTEXT_INVALIDATED, invalidation => {
+        if (activeChat?.snapshot?.sourceId === invalidation?.sourceId) {
+            cancelActiveChat(activeChat.owner);
+        }
         removeResponseObservation(invalidation);
         syncConversationOwner();
         if (invalidation?.ownerRequest === lastSelectedRequest) {
@@ -1427,24 +1546,28 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
         chatHistory = [];
         lastSelectedRequest = null;
         lastSelectedRequestIndex = -1;
-        if (chatMessages) {
-            chatMessages.innerHTML = '';
-            addSystemMessage('Select a request to start chatting. I can help you understand, modify, or debug HTTP requests and responses.');
-        }
+        renderChatHistory();
         updateRequestBadge();
         resetAllOpenCodeConversations().catch(error => {
             console.warn('Failed to clear OpenCode sessions:', error);
         });
     });
 
-    window.addEventListener('pagehide', () => {
+    if (activePagehideHandler) window.removeEventListener('pagehide', activePagehideHandler);
+    activePagehideHandler = () => {
         cancelActiveChat();
         chatHistoryByRequest.clear();
         responseObservationsByOwner.clear();
         referencedRequests.clear();
         clearRepeaterContext();
+        if (scrollFrameId !== null) {
+            cancelFrame(scrollFrameId);
+            scrollFrameId = null;
+            pendingScrollRequest = null;
+        }
         resetAllOpenCodeConversations().catch(() => {});
-    });
+    };
+    window.addEventListener('pagehide', activePagehideHandler);
 
     const initialContext = getActiveRepeaterContext();
     if (initialContext) recordResponseObservation(initialContext);
@@ -1458,33 +1581,39 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
     // Initial reference UI update
     updateReferenceUI();
     
-    function addUserMessage(text) {
+    function addUserMessage(text, { forceScroll = false, scroll = true } = {}) {
         if (!chatMessages) return;
         const messageDiv = document.createElement('div');
         messageDiv.className = 'chat-message chat-message-user';
         messageDiv.textContent = text;
         chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (scroll) scheduleScrollToLatest({ force: forceScroll });
     }
 
-    function renderChatHistory() {
+    function renderChatHistory({ emptyMessage = 'How can I help you with this request?' } = {}) {
         if (!chatMessages) return;
+        renderGeneration += 1;
+        followLatest = true;
         chatMessages.innerHTML = '';
 
         if (!getConversationOwner()) {
-            addSystemMessage('Select a request to start chatting. I can help you understand, modify, or debug HTTP requests and responses.');
+            addSystemMessage('Select a request to start chatting. I can help you understand, modify, or debug HTTP requests and responses.', { scroll: false });
+            syncProcessingUI();
+            scheduleScrollToLatest({ force: true });
             return;
         }
         if (chatHistory.length === 0) {
-            addSystemMessage('How can I help you with this request?');
-            return;
+            addSystemMessage(emptyMessage, { scroll: false });
+        } else {
+            chatHistory.forEach(message => {
+                if (message.role === 'user') addUserMessage(message.content, { scroll: false });
+                else if (message.role === 'assistant') addAssistantMessage(message.content, message, { scroll: false });
+                else addSystemMessage(message.content, { scroll: false });
+            });
         }
 
-        chatHistory.forEach(message => {
-            if (message.role === 'user') addUserMessage(message.content);
-            else if (message.role === 'assistant') addAssistantMessage(message.content, false, message);
-            else addSystemMessage(message.content);
-        });
+        syncProcessingUI();
+        scheduleScrollToLatest({ force: true });
     }
     
     // Parse LLM response for modification suggestions
@@ -2214,56 +2343,41 @@ export function setupLLMChat(elements, { bulkReplay } = {}) {
 
         card.appendChild(buttons);
         messageDiv.appendChild(card);
+        scheduleScrollToLatest();
     }
 
-    function addAssistantMessage(text, isLoading = false, message = null) {
+    function addAssistantMessage(text, message = null, { forceScroll = false, scroll = true } = {}) {
         if (!chatMessages) return '';
         const messageDiv = document.createElement('div');
         const messageId = `chat-msg-${Date.now()}-${Math.random()}`;
         messageDiv.id = messageId;
-        messageDiv.className = `chat-message chat-message-assistant ${isLoading ? 'loading' : ''}`;
-        
-        // Support markdown rendering if marked is available
-        if (window.marked && text && !isLoading) {
-            try {
-                messageDiv.innerHTML = renderMarkdown(text, window.marked);
-                // Add copy buttons to code blocks after markdown is parsed
-                addCopyButtonsToCodeBlocks(messageDiv);
-            } catch (e) {
-                messageDiv.textContent = text;
-            }
+        messageDiv.className = `chat-message chat-message-assistant${message?.isError ? ' error' : ''}`;
+
+        if (message?.isError) {
+            messageDiv.textContent = text;
         } else {
-            messageDiv.textContent = text || (isLoading ? 'Thinking...' : '');
+            const content = document.createElement('div');
+            content.className = 'llm-chat-response-content';
+            messageDiv.appendChild(content);
+            renderAssistantContent(messageDiv, text, { final: true });
         }
-        
+
         chatMessages.appendChild(messageDiv);
-        renderBulkReplayAction(messageDiv, message);
-        // Scroll to bottom after a brief delay to ensure DOM is updated
-        setTimeout(() => {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 10);
+        if (!message?.isError) renderBulkReplayAction(messageDiv, message);
+        if (scroll) scheduleScrollToLatest({ force: forceScroll });
         return messageId;
     }
     
-    function addSystemMessage(text) {
+    function addSystemMessage(text, { forceScroll = false, scroll = true } = {}) {
         if (!chatMessages) return;
         const messageDiv = document.createElement('div');
         messageDiv.className = 'chat-message chat-message-system';
         messageDiv.textContent = text;
         chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (scroll) scheduleScrollToLatest({ force: forceScroll });
     }
     
-    // Initialize with a helpful message
-    if (chatMessages) {
-        if (getConversationOwner()) {
-            // Let the LLM introduce itself naturally when a request is selected
-            // We'll add a system message that prompts the LLM to introduce itself
-            addSystemMessage('Hi! I can help you with this request. Ask me anything about it, or I can help modify it, explain it, or test different scenarios.');
-        } else {
-            addSystemMessage('Select a request to start chatting. I can help you understand, modify, or debug HTTP requests and responses.');
-        }
-    }
+    renderChatHistory();
 
     return {
         open: openChatPane,

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 const aiMocks = vi.hoisted(() => ({
     streamChatWithMessages: vi.fn()
@@ -46,10 +47,40 @@ function createRequest(path) {
 
 function createDeferred() {
     let resolve;
-    const promise = new Promise(resolvePromise => {
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
         resolve = resolvePromise;
+        reject = rejectPromise;
     });
-    return { promise, resolve };
+    return { promise, resolve, reject };
+}
+
+function defineScrollMetrics(element, initial = {}) {
+    const metrics = {
+        scrollHeight: initial.scrollHeight ?? 1000,
+        clientHeight: initial.clientHeight ?? 300,
+        scrollTop: initial.scrollTop ?? 700
+    };
+
+    Object.defineProperties(element, {
+        scrollHeight: {
+            configurable: true,
+            get: () => metrics.scrollHeight
+        },
+        clientHeight: {
+            configurable: true,
+            get: () => metrics.clientHeight
+        },
+        scrollTop: {
+            configurable: true,
+            get: () => metrics.scrollTop,
+            set: value => {
+                metrics.scrollTop = value;
+            }
+        }
+    });
+
+    return metrics;
 }
 
 function getDraftCorrelation(messages) {
@@ -105,7 +136,7 @@ describe('request AI chat controller', () => {
                     <button id="llm-chat-close-btn"></button>
                     <span id="llm-chat-request-badge"></span>
                     <span id="llm-chat-token-estimate"></span>
-                    <div id="llm-chat-messages"></div>
+                    <div id="llm-chat-messages" role="log" aria-label="AI conversation" aria-live="polite" aria-relevant="additions text" aria-busy="false" tabindex="0"></div>
                     <div class="llm-chat-input-wrapper">
                         <textarea id="llm-chat-input"></textarea>
                     </div>
@@ -140,6 +171,274 @@ describe('request AI chat controller', () => {
 
         delete window.marked;
         delete window.hljs;
+    });
+
+    it('declares an accessible, independently scrollable production chat log', () => {
+        const panelTemplate = document.createElement('template');
+        panelTemplate.innerHTML = readFileSync('panel.html', 'utf8');
+        const productionLog = panelTemplate.content.querySelector('#llm-chat-messages');
+        const panelCss = readFileSync('css/panel.css', 'utf8');
+
+        expect(productionLog).not.toBeNull();
+        expect(productionLog.getAttribute('role')).toBe('log');
+        expect(productionLog.getAttribute('aria-label')).toBe('AI conversation');
+        expect(productionLog.getAttribute('aria-live')).toBe('polite');
+        expect(productionLog.getAttribute('aria-busy')).toBe('false');
+        expect(productionLog.tabIndex).toBe(0);
+        expect(panelCss).toMatch(/\.llm-chat-pane\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+        expect(panelCss).toMatch(/\.llm-chat-body\s*\{[^}]*overflow:\s*hidden;[^}]*min-height:\s*0;/s);
+        expect(panelCss).toMatch(/\.llm-chat-messages\s*\{[^}]*overflow-y:\s*auto;[^}]*min-height:\s*0;/s);
+        expect(panelCss).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.llm-chat-processing-spinner/);
+        expect(panelCss).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.llm-chat-messages \.chat-message\s*\{[^}]*animation:\s*none;/);
+
+        setupLLMChat(elements);
+        const fixtureLog = document.getElementById('llm-chat-messages');
+        expect(fixtureLog.getAttribute('role')).toBe('log');
+        expect(fixtureLog.getAttribute('aria-busy')).toBe('false');
+        expect(fixtureLog.tabIndex).toBe(0);
+    });
+
+    it('shows accessible pending and streaming states and blocks duplicate turns', async () => {
+        const deferred = createDeferred();
+        let pushUpdate;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate) => {
+            pushUpdate = onUpdate;
+            await deferred.promise;
+            return 'Completed answer';
+        });
+        const controller = setupLLMChat(elements);
+        const submission = controller.prompt('Explain this slowly');
+        const messageLog = document.getElementById('llm-chat-messages');
+        const sendButton = document.getElementById('llm-chat-send-btn');
+        const prepareButton = document.getElementById('llm-chat-prepare-bulk-replay-btn');
+
+        expect(messageLog.getAttribute('aria-busy')).toBe('true');
+        expect(document.querySelector('.chat-message-assistant.processing').dataset.phase).toBe('pending');
+        expect(document.querySelector('.llm-chat-processing-status').textContent).toContain('Thinking');
+        expect(document.querySelector('.llm-chat-processing-spinner')).not.toBeNull();
+        expect(sendButton.disabled).toBe(true);
+        expect(prepareButton.disabled).toBe(true);
+
+        await expect(controller.prompt('Duplicate question')).resolves.toBe(false);
+        expect(aiMocks.streamChatWithMessages).toHaveBeenCalledTimes(1);
+        expect(document.querySelectorAll('.chat-message-user')).toHaveLength(1);
+
+        pushUpdate('Partial answer');
+        expect(document.querySelector('.chat-message-assistant.processing').dataset.phase).toBe('streaming');
+        expect(document.querySelector('.llm-chat-processing-status').textContent).toContain('Generating answer');
+        expect(document.querySelector('.llm-chat-response-content').textContent).toContain('Partial answer');
+        expect(messageLog.getAttribute('aria-busy')).toBe('true');
+
+        pushUpdate('Completed answer');
+        deferred.resolve();
+        await submission;
+
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        expect(document.querySelector('.llm-chat-processing-status')).toBeNull();
+        expect(messageLog.getAttribute('aria-busy')).toBe('false');
+        expect(messageLog.textContent).toContain('Completed answer');
+        expect(prepareButton.disabled).toBe(false);
+    });
+
+    it('follows streamed content only while the user remains near the latest message', async () => {
+        const messageLog = document.getElementById('llm-chat-messages');
+        const metrics = defineScrollMetrics(messageLog);
+        const deferred = createDeferred();
+        let pushUpdate;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate) => {
+            pushUpdate = onUpdate;
+            await deferred.promise;
+            return 'Complete';
+        });
+        const controller = setupLLMChat(elements);
+        await vi.waitFor(() => expect(metrics.scrollTop).toBe(1000));
+
+        metrics.scrollTop = 100;
+        messageLog.dispatchEvent(new Event('scroll'));
+        const submission = controller.prompt('Follow this response');
+        await vi.waitFor(() => expect(metrics.scrollTop).toBe(1000));
+
+        metrics.scrollTop = 200;
+        messageLog.dispatchEvent(new Event('scroll'));
+        metrics.scrollHeight = 1400;
+        pushUpdate('First growing response');
+        await new Promise(resolve => setTimeout(resolve, 20));
+        expect(metrics.scrollTop).toBe(200);
+
+        metrics.scrollTop = 1085;
+        messageLog.dispatchEvent(new Event('scroll'));
+        metrics.scrollHeight = 1500;
+        pushUpdate('Second growing response');
+        await vi.waitFor(() => expect(metrics.scrollTop).toBe(1500));
+
+        deferred.resolve();
+        await submission;
+    });
+
+    it('reconstructs an owner-scoped streaming answer after switching away and back', async () => {
+        const deferred = createDeferred();
+        let pushUpdate;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate) => {
+            pushUpdate = onUpdate;
+            await deferred.promise;
+            return 'Completed owner answer';
+        });
+        const secondRequest = createRequest('/second-owner');
+        state.requests.push(secondRequest);
+        const controller = setupLLMChat(elements);
+        const submission = controller.prompt('Owner-scoped question');
+        pushUpdate('Partial owner answer');
+
+        state.selectedRequest = secondRequest;
+        activateRepeaterContext({ ownerRequest: secondRequest, kind: 'captured', label: 'Second owner', responseText: null });
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        expect(document.getElementById('llm-chat-prepare-bulk-replay-btn').disabled).toBe(true);
+        expect(document.getElementById('llm-chat-prepare-bulk-replay-btn').title).toContain('Another request conversation');
+
+        state.selectedRequest = request;
+        activateRepeaterContext({ ownerRequest: request, kind: 'captured', label: 'First owner return', responseText: null });
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('true');
+        expect(document.querySelector('.chat-message-assistant.processing').textContent).toContain('Partial owner answer');
+
+        pushUpdate('Completed owner answer');
+        deferred.resolve();
+        await submission;
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+        expect(document.getElementById('llm-chat-messages').textContent).toContain('Completed owner answer');
+    });
+
+    it('retains owner-scoped failures without sending them back to the provider', async () => {
+        const deferred = createDeferred();
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async () => deferred.promise);
+        const secondRequest = createRequest('/failure-view');
+        state.requests.push(secondRequest);
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const controller = setupLLMChat(elements);
+        const submission = controller.prompt('Question that fails');
+
+        state.selectedRequest = secondRequest;
+        activateRepeaterContext({ ownerRequest: secondRequest, kind: 'captured', label: 'Failure view', responseText: null });
+        deferred.reject(new Error('Provider exploded'));
+        await expect(submission).resolves.toBe(false);
+        expect(document.getElementById('llm-chat-messages').textContent).not.toContain('Provider exploded');
+        expect(document.getElementById('llm-chat-prepare-bulk-replay-btn').disabled).toBe(false);
+
+        state.selectedRequest = request;
+        activateRepeaterContext({ ownerRequest: request, kind: 'captured', label: 'Failed owner return', responseText: null });
+        expect(document.querySelector('.chat-message-assistant.error').textContent).toContain('Provider exploded');
+
+        await controller.prompt('Try again');
+        const retryMessages = aiMocks.streamChatWithMessages.mock.calls[1][2];
+        expect(retryMessages.some(message => message.content.includes('Provider exploded'))).toBe(false);
+        consoleError.mockRestore();
+    });
+
+    it('clears canceled UI immediately and prevents an old turn from clearing a newer turn', async () => {
+        const firstDeferred = createDeferred();
+        const secondDeferred = createDeferred();
+        let firstUpdate;
+        let secondUpdate;
+        let firstSignal;
+        aiMocks.streamChatWithMessages
+            .mockImplementationOnce(async (apiKey, model, messages, onUpdate, provider, options) => {
+                firstUpdate = onUpdate;
+                firstSignal = options.signal;
+                await firstDeferred.promise;
+            })
+            .mockImplementationOnce(async (apiKey, model, messages, onUpdate) => {
+                secondUpdate = onUpdate;
+                await secondDeferred.promise;
+            });
+        const controller = setupLLMChat(elements);
+        const firstSubmission = controller.prompt('Cancel this turn');
+
+        document.getElementById('llm-chat-clear-btn').click();
+        expect(firstSignal.aborted).toBe(true);
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+
+        const secondSubmission = controller.prompt('Keep this turn active');
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('true');
+        firstUpdate('Late canceled output');
+        firstDeferred.resolve();
+        await firstSubmission;
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('true');
+        expect(document.getElementById('llm-chat-messages').textContent).not.toContain('Late canceled output');
+
+        secondUpdate('Current output');
+        secondDeferred.resolve();
+        await secondSubmission;
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+        expect(document.getElementById('llm-chat-messages').textContent).toContain('Current output');
+    });
+
+    it('cancels an active turn when its repeater source is invalidated', async () => {
+        const deferred = createDeferred();
+        let pushUpdate;
+        let signal;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate, provider, options) => {
+            pushUpdate = onUpdate;
+            signal = options.signal;
+            await deferred.promise;
+        });
+        const controller = setupLLMChat(elements);
+        const sourceId = getActiveRepeaterContext().sourceId;
+        const submission = controller.prompt('Invalidate this turn');
+
+        invalidateRepeaterSource(sourceId);
+        expect(signal.aborted).toBe(true);
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        pushUpdate('Late invalidated output');
+        deferred.resolve();
+        await submission;
+        expect(document.getElementById('llm-chat-messages').textContent).not.toContain('Late invalidated output');
+    });
+
+    it('cancels active processing when all requests are cleared', async () => {
+        const deferred = createDeferred();
+        let signal;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate, provider, options) => {
+            signal = options.signal;
+            await deferred.promise;
+        });
+        const controller = setupLLMChat(elements);
+        const submission = controller.prompt('Clear all during this turn');
+
+        actions.request.clearAll();
+        expect(signal.aborted).toBe(true);
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        deferred.resolve();
+        await submission;
+    });
+
+    it('does not restore active processing after panel teardown', async () => {
+        const deferred = createDeferred();
+        let signal;
+        aiMocks.streamChatWithMessages.mockImplementationOnce(async (apiKey, model, messages, onUpdate, provider, options) => {
+            signal = options.signal;
+            await deferred.promise;
+        });
+        const controller = setupLLMChat(elements);
+        const submission = controller.prompt('End this panel session');
+
+        window.dispatchEvent(new Event('pagehide'));
+        expect(signal.aborted).toBe(true);
+        expect(document.getElementById('llm-chat-messages').getAttribute('aria-busy')).toBe('false');
+        expect(document.querySelector('.chat-message-assistant.processing')).toBeNull();
+        deferred.resolve();
+        await submission;
+    });
+
+    it('shows one clear confirmation instead of stacking the empty-chat prompt', () => {
+        setupLLMChat(elements);
+
+        document.getElementById('llm-chat-clear-btn').click();
+
+        const systemMessages = document.querySelectorAll('.chat-message-system');
+        expect(systemMessages).toHaveLength(1);
+        expect(systemMessages[0].textContent).toBe('Chat cleared. How can I help you with this request?');
     });
 
     it('opens beside the request and preserves prior turns for follow-up prompts', async () => {
@@ -197,7 +496,7 @@ describe('request AI chat controller', () => {
         input.value = 'Use two values for the identifier';
         prepareButton.click();
         await vi.waitFor(() => expect(aiMocks.streamChatWithMessages).toHaveBeenCalledTimes(1));
-        await vi.waitFor(() => expect(document.querySelector('.chat-message-assistant.loading')).toBeNull());
+        await vi.waitFor(() => expect(document.querySelector('.chat-message-assistant.processing')).toBeNull());
         await Promise.resolve();
 
         expect(aiMocks.streamChatWithMessages.mock.calls[0][2][0].content).toContain(BULK_REPLAY_FENCE_LANGUAGE);

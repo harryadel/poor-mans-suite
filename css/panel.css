@@ -1183,10 +1183,16 @@ body.theme-transitioning img {
     flex: 0 0 33.33%;
     min-width: 300px;
     min-height: 0;
-    height: 100%;
     border-left: 1px solid var(--border-color);
     display: none;
     flex-direction: column;
+    overflow: hidden;
+}
+
+.llm-chat-pane > .pane-header,
+.llm-chat-reference-container,
+.llm-chat-input-container {
+    flex: 0 0 auto;
 }
 
 .chat-resize-handle {
@@ -4871,6 +4877,7 @@ pre {
     flex-direction: column;
     overflow: hidden;
     padding: 0;
+    min-width: 0;
     min-height: 0;
 }
 
@@ -4956,9 +4963,52 @@ pre {
     border: 1px solid var(--border-color);
 }
 
-.chat-message-assistant.loading {
-    opacity: 0.7;
-    font-style: italic;
+.chat-message-assistant.processing {
+    border-color: color-mix(in srgb, var(--accent-color) 55%, var(--border-color));
+}
+
+.llm-chat-processing-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--accent-color);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.chat-message-assistant[data-phase="streaming"] .llm-chat-processing-status {
+    margin-bottom: var(--spacing-sm);
+}
+
+.llm-chat-processing-spinner {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    border: 2px solid color-mix(in srgb, var(--accent-color) 28%, transparent);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: llm-chat-spin 0.8s linear infinite;
+}
+
+.llm-chat-response-content:empty {
+    display: none;
+}
+
+@keyframes llm-chat-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .llm-chat-processing-spinner {
+        animation: none;
+        border-color: var(--accent-color);
+    }
+
+    .llm-chat-messages .chat-message {
+        animation: none;
+    }
 }
 
 .chat-message-assistant.error {
@@ -5195,9 +5245,14 @@ pre {
     cursor: pointer;
 }
 
-.llm-chat-prepare-bulk-replay-btn:hover {
+.llm-chat-prepare-bulk-replay-btn:hover:not(:disabled) {
     background: rgba(138, 180, 248, 0.16);
     border-color: var(--accent-color);
+}
+
+.llm-chat-prepare-bulk-replay-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .llm-chat-prepare-bulk-replay-btn:focus-visible {
