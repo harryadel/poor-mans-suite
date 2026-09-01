@@ -112,6 +112,10 @@ export const EVENT_NAMES = {
     NETWORK_REQUEST_CAPTURED: 'network:request-captured',
     NETWORK_RESPONSE_RECEIVED: 'network:response-received',
     NETWORK_ERROR: 'network:error',
+
+    // Repeater context events
+    REPEATER_CONTEXT_ACTIVATED: 'repeater-context:activated',
+    REPEATER_CONTEXT_INVALIDATED: 'repeater-context:invalidated',
     
     // State events
     STATE_REQUESTS_CLEARED: 'state:requests-cleared',

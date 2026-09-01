@@ -7,16 +7,28 @@ import { generateJsonView } from './json-view.js';
 import { events, EVENT_NAMES } from '../core/events.js';
 import { getStatusClass, formatRawResponse } from '../network/response-parser.js';
 import { elements } from './main-ui.js';
+import {
+    activateRepeaterContext,
+    getActiveRepeaterContext,
+    isRepeaterSourceValid
+} from '../features/repeater-context.js';
 
-// Store editor content per request to preserve modifications
-let editorContentByRequest = new Map(); // Map<requestIndex, { content: string, undoStack: string[], redoStack: string[], response?: {...} }>
-let lastSelectedRequestIndex = -1; // Track last selected request to save state
+// Key editor state by request identity so removals and index shifts cannot restore
+// another request's content or response.
+const editorContentByRequest = new WeakMap();
+let lastSelectedRequest = null;
 
 /**
  * Save current editor state for the given request index (including response)
  */
 export function saveEditorState(requestIndex) {
     if (requestIndex === -1 || !elements.rawRequestInput) return;
+
+    const ownerRequest = state.requests[requestIndex];
+    if (!ownerRequest) return;
+
+    const activeContext = getActiveRepeaterContext();
+    if (activeContext && activeContext.ownerRequest !== ownerRequest) return;
     
     const currentContent = elements.rawRequestInput.innerText || elements.rawRequestInput.textContent || '';
     
@@ -36,23 +48,29 @@ export function saveEditorState(requestIndex) {
     const savedState = {
         content: currentContent,
         undoStack: undoStack,
-        redoStack: [...state.redoStack]
+        redoStack: [...state.redoStack],
+        useHttps: elements.useHttpsCheckbox?.checked
     };
     
-    // Also save response if available
-    if (state.currentResponse || (elements.resStatus && elements.resStatus.textContent)) {
+    const responseBelongsToRequest = activeContext?.ownerRequest === ownerRequest;
+
+    // Keep the exact raw response separate from whichever highlighted or diff view is rendered.
+    if (responseBelongsToRequest && state.currentResponse !== null && state.currentResponse !== undefined) {
         savedState.response = {
-            content: state.currentResponse || '',
+            content: state.currentResponse,
             status: elements.resStatus ? elements.resStatus.textContent : '',
             statusClass: elements.resStatus ? elements.resStatus.className : 'status-badge',
             time: elements.resTime ? elements.resTime.textContent : '',
             size: elements.resSize ? elements.resSize.textContent : '',
-            baseline: state.regularRequestBaseline || null
+            baseline: state.regularRequestBaseline || null,
+            sourceId: activeContext?.sourceId,
+            sourceKind: activeContext?.kind,
+            sourceLabel: activeContext?.label
         };
     }
     
     // Save state even if content is empty (to preserve response)
-    editorContentByRequest.set(requestIndex, savedState);
+    editorContentByRequest.set(ownerRequest, savedState);
 }
 
 /**
@@ -107,11 +125,12 @@ function getOriginalRequestContent(requestIndex) {
  * @returns {string|null} The restored content, or null if no saved state
  */
 function restoreEditorState(requestIndex) {
-    if (requestIndex === -1 || !editorContentByRequest.has(requestIndex)) {
+    const ownerRequest = state.requests[requestIndex];
+    if (requestIndex === -1 || !ownerRequest || !editorContentByRequest.has(ownerRequest)) {
         return null;
     }
     
-    const savedState = editorContentByRequest.get(requestIndex);
+    const savedState = editorContentByRequest.get(ownerRequest);
     if (savedState) {
         // Get original request content to ensure it's the first item in undo stack
         const originalContent = getOriginalRequestContent(requestIndex);
@@ -138,9 +157,12 @@ function restoreEditorState(requestIndex) {
             state.redoStack = [];
         }
         
-        // Restore response if available
-        if (savedState.response) {
-            state.currentResponse = savedState.response.content || '';
+        const responseSourceIsValid = !savedState.response?.sourceId ||
+            isRepeaterSourceValid(savedState.response.sourceId, state.requests[requestIndex]);
+
+        // Invalidated Bulk Replay results must not be resurrected from editor state.
+        if (savedState.response && responseSourceIsValid) {
+            state.currentResponse = savedState.response.content;
             state.regularRequestBaseline = savedState.response.baseline || null;
             
             // Emit event to update response UI (this will update all response views)
@@ -149,7 +171,18 @@ function restoreEditorState(requestIndex) {
                 statusClass: savedState.response.statusClass || 'status-badge',
                 time: savedState.response.time || '',
                 size: savedState.response.size || '',
-                content: savedState.response.content || ''
+                content: savedState.response.content
+            });
+        } else {
+            delete savedState.response;
+            state.currentResponse = null;
+            state.regularRequestBaseline = null;
+            events.emit(EVENT_NAMES.UI_UPDATE_RESPONSE_VIEW, {
+                status: '',
+                statusClass: 'status-badge',
+                time: '',
+                size: '',
+                content: ''
             });
         }
         
@@ -166,11 +199,6 @@ export function selectRequest(index) {
         return;
     }
     
-    // Save current editor state before switching (if we had a previous selection)
-    if (lastSelectedRequestIndex !== -1 && lastSelectedRequestIndex !== index && elements.rawRequestInput) {
-        saveEditorState(lastSelectedRequestIndex);
-    }
-    
     let request = state.requests[index];
     if (!request || !request.request) {
         // Try to find the request by matching URL or other identifier
@@ -178,15 +206,24 @@ export function selectRequest(index) {
         // If we can't find it, just return
         return;
     }
+
+    // A Bulk Replay result can own the visible panes even when the sidebar points
+    // at another request. Save only the actual visible owner before switching.
+    const visibleOwner = getActiveRepeaterContext()?.ownerRequest || lastSelectedRequest;
+    if (visibleOwner && visibleOwner !== request && elements.rawRequestInput) {
+        const visibleOwnerIndex = state.requests.indexOf(visibleOwner);
+        if (visibleOwnerIndex !== -1) saveEditorState(visibleOwnerIndex);
+    }
     
     // Use action to select request (automatically emits events)
     actions.request.select(request, index);
     
     // Update tracked index
-    lastSelectedRequestIndex = index;
+    lastSelectedRequest = request;
 
     // Try to restore saved editor state, otherwise reconstruct from original
     let rawText = restoreEditorState(index);
+    const savedState = editorContentByRequest.get(request);
     let useHttps = false;
     
     if (!rawText) {
@@ -235,9 +272,11 @@ export function selectRequest(index) {
         state.undoStack = [rawText];
         state.redoStack = [];
     } else {
-        // Restored from saved state - determine useHttps from URL
+        // Restore the exact scheme toggle used with the edited/resend state.
         const urlObj = new URL(state.selectedRequest.request.url);
-        useHttps = urlObj.protocol === 'https:';
+        useHttps = typeof savedState.useHttps === 'boolean'
+            ? savedState.useHttps
+            : urlObj.protocol === 'https:';
         
         // History and undo/redo stacks were already restored by restoreEditorState
         // But we need to ensure history is initialized if it wasn't saved
@@ -249,7 +288,6 @@ export function selectRequest(index) {
     }
 
     // Reset baseline for regular requests (only if not restoring from saved state)
-    const savedState = editorContentByRequest.get(index);
     if (!savedState || !savedState.response) {
         state.regularRequestBaseline = null;
     }
@@ -268,7 +306,7 @@ export function selectRequest(index) {
     // If we have captured response data, show it immediately (only if not restoring from saved state)
     // Note: restoreEditorState already handles response restoration, so we only show original captured response
     // if there's no saved response state
-    const hasSavedResponse = savedState && savedState.response && savedState.response.content;
+    const hasSavedResponse = Boolean(savedState?.response);
     if (!hasSavedResponse && state.selectedRequest.responseBody !== undefined) {
         const status = state.selectedRequest.responseStatus || '';
         const statusText = state.selectedRequest.responseStatusText || '';
@@ -303,7 +341,26 @@ export function selectRequest(index) {
         if (elements.resViewPreview && elements.resViewPreview.style.display !== 'none' && elements.resViewPreview.classList.contains('active')) {
             updatePreview(rawResponse);
         }
+    } else if (!hasSavedResponse) {
+        state.currentResponse = null;
+        state.regularRequestBaseline = null;
+        events.emit(EVENT_NAMES.UI_UPDATE_RESPONSE_VIEW, {
+            status: '',
+            statusClass: 'status-badge',
+            time: '',
+            size: '',
+            content: ''
+        });
     }
+
+    const restoredSource = savedState?.response;
+    activateRepeaterContext({
+        ownerRequest: state.selectedRequest,
+        sourceId: restoredSource?.sourceId,
+        kind: restoredSource?.sourceKind || 'captured',
+        label: restoredSource?.sourceLabel || `Captured request #${index + 1}`,
+        responseText: state.currentResponse
+    });
 }
 
 export function toggleLayout(save = true) {

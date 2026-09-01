@@ -11,6 +11,15 @@ vi.mock('../js/network/permissions.js', () => ({
 
 import { state } from '../js/core/state.js';
 import { setupBulkReplay } from '../js/features/bulk-replay/index.js';
+import {
+  activateRepeaterContext,
+  captureRepeaterContext,
+  clearRepeaterContext,
+  getActiveRepeaterContext,
+  invalidateRepeaterOwner,
+  invalidateRepeaterSource,
+  isRepeaterSnapshotValid
+} from '../js/features/repeater-context.js';
 
 const sortHeaders = ['id', 'payload', 'status', 'size', 'time', 'matches']
   .map(key => `
@@ -53,6 +62,7 @@ function addContinuationGuard(text) {
 
 describe('Bulk Replay result sorting UI', () => {
   beforeEach(() => {
+    clearRepeaterContext();
     document.body.innerHTML = `
       <button id="bulk-replay-btn" disabled></button>
       <div id="bulk-config-modal"><button class="close-modal"></button></div>
@@ -101,6 +111,15 @@ describe('Bulk Replay result sorting UI', () => {
     state.responseMatchCaseSensitive = true;
     state.shouldStopBulk = false;
     state.shouldPauseBulk = false;
+    state.currentResponse = null;
+    state.selectedRequest = {
+      request: {
+        method: 'GET',
+        url: 'https://example.test/login',
+        headers: []
+      }
+    };
+    state.requests = [state.selectedRequest];
 
     Element.prototype.scrollIntoView = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValue(createResponse(200, 'OK', 'response'));
@@ -138,6 +157,25 @@ describe('Bulk Replay result sorting UI', () => {
 
     expect(runStatus?.getAttribute('role')).toBe('status');
     expect(runStatus?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('wires the Bulk Replay controller into chat and exposes a hidden semantic review boundary', () => {
+    const mainSource = readFileSync(resolve(process.cwd(), 'js/main.js'), 'utf8');
+    const panelHtml = readFileSync(resolve(process.cwd(), 'panel.html'), 'utf8');
+    const panelDocument = new DOMParser().parseFromString(panelHtml, 'text/html');
+    const review = panelDocument.getElementById('bulk-chat-review');
+
+    expect(mainSource).toMatch(/const bulkReplay = setupBulkReplay\(\);/);
+    expect(mainSource).toMatch(/setupLLMChat\(elements, \{ bulkReplay \}\)/);
+    expect(review?.hidden).toBe(true);
+    expect(review?.getAttribute('aria-labelledby')).toBe('bulk-chat-review-title');
+    expect(panelDocument.getElementById('bulk-review-validation')?.getAttribute('role')).toBe('status');
+    expect(panelDocument.getElementById('bulk-review-validation')?.getAttribute('aria-live')).toBe('polite');
+    expect(panelDocument.getElementById('bulk-review-hard-limit')?.textContent).toContain('1,000 requests');
+    expect(panelDocument.getElementById('bulk-review-template')).not.toBeNull();
+    expect(review?.textContent).toContain('Start Attack is a separate confirmation');
+    expect(review?.textContent).toContain('optional host permission');
+    expect(panelDocument.getElementById('cancel-bulk-review-btn')?.hidden).toBe(true);
   });
 
   it('updates the active header state and sort direction', () => {
@@ -296,5 +334,116 @@ describe('Bulk Replay result sorting UI', () => {
     expect(getResultIds()).toEqual([1, 2]);
     expect(document.querySelector('tr[data-sort-id="2"]')?.classList.contains('is-continuation-terminal'))
       .toBe(true);
+  });
+
+  it('activates only the selected run-owned raw result and invalidates replaced result sources', async () => {
+    globalThis.fetch = vi.fn(url => Promise.resolve(createResponse(
+      200,
+      'OK',
+      url.includes('first') ? 'first raw response' : 'second raw response'
+    )));
+
+    setupBulkReplay();
+    document.getElementById('bulk-replay-btn').click();
+    document.querySelector('.position-card .payload-list-input').value = 'first\nsecond';
+    document.getElementById('start-attack-btn').click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('bulk-progress-text').textContent).toBe('2/2');
+    });
+
+    document.querySelector('tr[data-sort-id="1"]').click();
+    const firstContext = getActiveRepeaterContext();
+    const firstSnapshot = captureRepeaterContext({
+      requestText: uiMocks.elements.rawRequestInput.innerText,
+      useHttps: true
+    });
+    expect(firstContext).toMatchObject({
+      ownerRequest: state.selectedRequest,
+      kind: 'bulk-result',
+      label: 'Bulk Replay result #1',
+      responseText: expect.stringContaining('first raw response')
+    });
+
+    document.querySelector('tr[data-sort-id="2"]').click();
+    const secondContext = getActiveRepeaterContext();
+    const secondSnapshot = captureRepeaterContext({
+      requestText: uiMocks.elements.rawRequestInput.innerText,
+      useHttps: true
+    });
+    expect(secondContext.sourceId).not.toBe(firstContext.sourceId);
+    expect(secondContext.responseText).toContain('second raw response');
+    expect(secondContext.responseText).not.toContain('first raw response');
+    expect(state.currentResponse).toBe(secondContext.responseText);
+
+    document.getElementById('start-attack-btn').click();
+    await vi.waitFor(() => {
+      expect(isRepeaterSnapshotValid(firstSnapshot)).toBe(false);
+      expect(isRepeaterSnapshotValid(secondSnapshot)).toBe(false);
+    });
+  });
+
+  it('clears a visible result and refuses unopened rows after the owner is removed', async () => {
+    activateRepeaterContext({
+      ownerRequest: state.selectedRequest,
+      kind: 'captured',
+      label: 'Captured request',
+      responseText: null
+    });
+    setupBulkReplay();
+    document.getElementById('bulk-replay-btn').click();
+    document.querySelector('.position-card .payload-list-input').value = 'first\nsecond';
+    document.getElementById('start-attack-btn').click();
+    await vi.waitFor(() => {
+      expect(document.getElementById('bulk-progress-text').textContent).toBe('2/2');
+    });
+
+    document.querySelector('tr[data-sort-id="1"]').click();
+    expect(getActiveRepeaterContext()?.kind).toBe('bulk-result');
+
+    invalidateRepeaterOwner(state.selectedRequest);
+
+    expect(uiMocks.elements.rawRequestInput.innerText).toBe('');
+    expect(state.currentResponse).toBeNull();
+    expect(getActiveRepeaterContext()).toBeNull();
+
+    document.querySelector('tr[data-sort-id="2"]').click();
+    expect(uiMocks.elements.rawRequestInput.innerText).toBe('');
+    expect(getActiveRepeaterContext()).toBeNull();
+    expect(document.getElementById('bulk-run-status').textContent).toContain('Source request was removed');
+  });
+
+  it('does not clear another source after a previously selected result is invalidated', async () => {
+    activateRepeaterContext({
+      ownerRequest: state.selectedRequest,
+      kind: 'captured',
+      label: 'Captured request',
+      responseText: null
+    });
+    setupBulkReplay();
+    document.getElementById('bulk-replay-btn').click();
+    document.querySelector('.position-card .payload-list-input').value = 'first';
+    document.getElementById('start-attack-btn').click();
+    await vi.waitFor(() => {
+      expect(document.getElementById('bulk-progress-text').textContent).toBe('1/1');
+    });
+
+    document.querySelector('tr[data-sort-id="1"]').click();
+    const resultSourceId = getActiveRepeaterContext().sourceId;
+    const otherOwner = { request: { method: 'GET', url: 'https://other.test/request', headers: [] } };
+    uiMocks.elements.rawRequestInput.innerText = 'GET /request HTTP/1.1\nHost: other.test';
+    state.currentResponse = 'HTTP/1.1 200 OK\n\nother response';
+    activateRepeaterContext({
+      ownerRequest: otherOwner,
+      kind: 'captured',
+      label: 'Other request',
+      responseText: state.currentResponse
+    });
+
+    invalidateRepeaterSource(resultSourceId);
+
+    expect(uiMocks.elements.rawRequestInput.innerText).toContain('Host: other.test');
+    expect(state.currentResponse).toContain('other response');
+    expect(getActiveRepeaterContext()?.ownerRequest).toBe(otherOwner);
   });
 });

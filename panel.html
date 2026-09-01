@@ -480,8 +480,11 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div class="llm-chat-disclaimer">Poor Man's Suite can make mistakes. Check important information.</div>
-                            <button id="llm-chat-clear-btn" class="llm-chat-clear-btn" title="Clear conversation">Clear</button>
+                            <div class="llm-chat-input-actions">
+                                <button id="llm-chat-prepare-bulk-replay-btn" class="llm-chat-prepare-bulk-replay-btn" type="button">Prepare Bulk Replay</button>
+                                <div class="llm-chat-disclaimer">Poor Man's Suite can make mistakes. Check important information.</div>
+                                <button id="llm-chat-clear-btn" class="llm-chat-clear-btn" type="button" title="Clear conversation">Clear</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -624,6 +627,38 @@
                 <button class="close-modal">&times;</button>
             </div>
             <div class="modal-body">
+                <section id="bulk-chat-review" class="bulk-chat-review" aria-labelledby="bulk-chat-review-title" hidden>
+                    <div class="bulk-chat-review-heading">
+                        <div>
+                            <p class="bulk-chat-review-eyebrow">Chat-prepared draft</p>
+                            <h4 id="bulk-chat-review-title">Review before starting traffic</h4>
+                        </div>
+                        <span class="bulk-chat-review-limit">Hard maximum: <strong id="bulk-review-hard-limit">1,000 requests</strong></span>
+                    </div>
+                    <dl class="bulk-chat-review-summary">
+                        <div><dt>Source</dt><dd id="bulk-review-source"></dd></div>
+                        <div><dt>Snapshot ID</dt><dd id="bulk-review-snapshot-id"></dd></div>
+                        <div><dt>Target URL</dt><dd id="bulk-review-target"></dd></div>
+                        <div><dt>Scheme</dt><dd id="bulk-review-scheme"></dd></div>
+                        <div><dt>Mode</dt><dd id="bulk-review-mode"></dd></div>
+                        <div><dt>Projected requests</dt><dd id="bulk-review-projected-count"></dd></div>
+                        <div><dt>Response matchers</dt><dd id="bulk-review-matcher-count"></dd></div>
+                        <div><dt>Continuation guards</dt><dd id="bulk-review-guard-summary"></dd></div>
+                    </dl>
+                    <div class="bulk-chat-review-template">
+                        <p>Marked request template</p>
+                        <pre id="bulk-review-template"></pre>
+                    </div>
+                    <div class="bulk-chat-review-notices" aria-label="Bulk Replay confirmation and permission notices">
+                        <p><strong>Start Attack is a separate confirmation.</strong> Opening or editing this review sends no requests.</p>
+                        <p>After confirmation, optional host permission may be requested before traffic starts.</p>
+                    </div>
+                    <div id="bulk-review-validation" class="bulk-chat-review-validation" role="status" aria-live="polite">
+                        <p id="bulk-review-status"></p>
+                        <ul id="bulk-review-errors" hidden></ul>
+                    </div>
+                </section>
+
                 <!-- Attack Type Selection -->
                 <div class="form-group">
                     <label>Attack Type</label>
@@ -699,6 +734,7 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" id="cancel-bulk-review-btn" class="secondary-btn" hidden>Cancel Review</button>
                 <button id="start-attack-btn" class="primary-btn">Start Attack</button>
             </div>
         </div>

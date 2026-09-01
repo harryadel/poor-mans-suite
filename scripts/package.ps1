@@ -5,8 +5,8 @@ $ErrorActionPreference = "Stop"
 
 $zipName = "poor-mans-suite-extension.zip"
 # Get all files and explicitly exclude directories and files
-$excludeDirs = @("tests", "node_modules", "scripts", ".git", "dist", "build", "coverage", ".nyc_output", "temp")
-$excludeFiles = @("package.json", "package-lock.json", "vitest.config.js", ".gitignore", "ARCHITECTURE_REVIEW.md", "CONTRIBUTING.md", "Agent.md")
+$excludeDirs = @("tests", "node_modules", "scripts", ".git", ".opencode", "openspec", "docs", "dist", "build", "coverage", ".nyc_output", "temp")
+$excludeFiles = @("package.json", "package-lock.json", "vitest.config.js", ".git", ".gitignore", "ARCHITECTURE_REVIEW.md", "CONTRIBUTING.md", "Agent.md")
 $excludePatterns = @("*.test.js", "*.spec.js", "*.zip", "*.log", "*.tmp", ".DS_Store")
 
 Write-Host "📦 Creating Poor Man's Suite production package...`n" -ForegroundColor Cyan
@@ -60,5 +60,6 @@ Write-Host "   - Dev dependencies (node_modules/, package.json)"
 Write-Host "   - Build config (vitest.config.js)"
 Write-Host "   - Git files (.git/, .gitignore)"
 Write-Host "   - Internal/development documentation (Agent.md, CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)"
+Write-Host "   - Development workflow directories (.opencode/, openspec/, docs/)"
 Write-Host "   - Build artifacts and existing zip archives"
 Write-Host "`n🚀 Ready for distribution!" -ForegroundColor Green

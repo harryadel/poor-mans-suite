@@ -42,8 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initMultiTabCapture();
     initExtractorUI();
-    setupBulkReplay();
-    const llmChat = setupLLMChat(elements);
+    const bulkReplay = setupBulkReplay();
+    const llmChat = setupLLMChat(elements, { bulkReplay });
     setupAIFeatures(elements, llmChat);
     initSearch();
 

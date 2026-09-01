@@ -1331,6 +1331,152 @@ body.theme-transitioning img {
     display: flex;
     justify-content: flex-end;
     flex-shrink: 0;
+    gap: 8px;
+}
+
+.bulk-chat-review {
+    margin-bottom: 18px;
+    padding: 14px;
+    border: 1px solid rgba(138, 180, 248, 0.55);
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(138, 180, 248, 0.14), rgba(138, 180, 248, 0.04));
+}
+
+.bulk-chat-review[hidden],
+#cancel-bulk-review-btn[hidden] {
+    display: none;
+}
+
+.bulk-chat-review-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.bulk-chat-review-heading h4,
+.bulk-chat-review-eyebrow {
+    margin: 0;
+}
+
+.bulk-chat-review-heading h4 {
+    font-size: 14px;
+}
+
+.bulk-chat-review-eyebrow {
+    margin-bottom: 3px;
+    color: var(--accent-color);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.bulk-chat-review-limit {
+    padding: 4px 7px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: #9aa0a6;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.bulk-chat-review-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    margin: 14px 0;
+}
+
+.bulk-chat-review-summary div {
+    min-width: 0;
+}
+
+.bulk-chat-review-summary dt {
+    margin-bottom: 2px;
+    color: #9aa0a6;
+    font-size: 10px;
+}
+
+.bulk-chat-review-summary dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+}
+
+.bulk-chat-review-template {
+    margin-bottom: 12px;
+}
+
+.bulk-chat-review-template p {
+    margin: 0 0 4px;
+    color: #9aa0a6;
+    font-size: 10px;
+}
+
+.bulk-chat-review-template pre {
+    max-height: 150px;
+    margin: 0;
+    padding: 8px;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-color);
+    font: 10px/1.4 'Consolas', 'Monaco', monospace;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.bulk-chat-review-notices {
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    color: #9aa0a6;
+    font-size: 11px;
+}
+
+.bulk-chat-review-notices p {
+    margin: 0 0 5px;
+}
+
+.bulk-chat-review-validation {
+    margin-top: 10px;
+    padding: 9px 10px;
+    border-radius: 4px;
+    background: rgba(52, 168, 83, 0.12);
+    color: var(--text-color);
+    font-size: 11px;
+}
+
+.bulk-chat-review-validation[data-state="error"],
+.bulk-chat-review-validation[data-state="expired"] {
+    background: rgba(242, 139, 130, 0.14);
+    color: var(--error-color);
+}
+
+.bulk-chat-review-validation p,
+.bulk-chat-review-validation ul {
+    margin: 0;
+}
+
+.bulk-chat-review-validation ul {
+    margin-top: 6px;
+    padding-left: 18px;
+}
+
+@media (max-width: 560px) {
+    .bulk-chat-review-heading {
+        display: block;
+    }
+
+    .bulk-chat-review-limit {
+        display: inline-block;
+        margin-top: 8px;
+    }
+
+    .bulk-chat-review-summary {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Screenshot Editor Modal */
@@ -5031,7 +5177,36 @@ pre {
     transform: rotate(-90deg);
 }
 
+.llm-chat-input-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.llm-chat-prepare-bulk-replay-btn {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    color: var(--accent-color);
+    background: rgba(138, 180, 248, 0.08);
+    border: 1px solid rgba(138, 180, 248, 0.45);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.llm-chat-prepare-bulk-replay-btn:hover {
+    background: rgba(138, 180, 248, 0.16);
+    border-color: var(--accent-color);
+}
+
+.llm-chat-prepare-bulk-replay-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
 .llm-chat-disclaimer {
+    flex: 1 1 auto;
     font-size: 11px;
     color: #9aa0a6;
     padding: 4px 0;
@@ -5040,7 +5215,7 @@ pre {
 }
 
 .llm-chat-clear-btn {
-    align-self: flex-end;
+    flex: 0 0 auto;
     background: transparent;
     border: none;
     color: #9aa0a6;
@@ -5435,6 +5610,92 @@ pre {
     background: var(--error-color, #f44336);
     border-color: var(--error-color, #f44336);
     color: #fff;
+}
+
+.llm-chat-bulk-replay-card,
+.llm-chat-bulk-replay-validation {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.llm-chat-bulk-replay-card h4,
+.llm-chat-bulk-replay-validation h4 {
+    margin: 0;
+    font-size: 13px;
+}
+
+.llm-chat-bulk-replay-summary {
+    display: grid;
+    grid-template-columns: minmax(70px, auto) minmax(0, 1fr);
+    gap: 4px var(--spacing-sm);
+    margin: 0;
+    font-size: 12px;
+}
+
+.llm-chat-bulk-replay-summary dt {
+    color: #9aa0a6;
+}
+
+.llm-chat-bulk-replay-summary dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.llm-chat-bulk-replay-status {
+    margin: 0;
+    color: #9aa0a6;
+    font-size: 11px;
+}
+
+.llm-chat-bulk-replay-card.expired .llm-chat-bulk-replay-status,
+.llm-chat-bulk-replay-validation {
+    color: var(--error-color);
+    border-color: var(--error-color);
+}
+
+.llm-chat-bulk-replay-validation ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+}
+
+.llm-chat-bulk-replay-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+}
+
+.llm-chat-bulk-replay-review-btn,
+.llm-chat-bulk-replay-discard-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.llm-chat-bulk-replay-review-btn {
+    color: #000;
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.llm-chat-bulk-replay-discard-btn {
+    color: var(--text-color);
+    background: transparent;
+}
+
+.llm-chat-bulk-replay-review-btn:disabled,
+.llm-chat-bulk-replay-discard-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .llm-chat-feedback {

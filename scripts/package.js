@@ -26,7 +26,7 @@ try {
   // This is more reliable than zip's exclude patterns
   console.log('Collecting files to package...');
   
-  const findCommand = `find . -type f ! -path './.git/*' ! -path './node_modules/*' ! -path './tests/*' ! -path './scripts/*' ! -path './dist/*' ! -path './build/*' ! -path './coverage/*' ! -path './.nyc_output/*' ! -path './temp/*' ! -name '*.test.js' ! -name '*.spec.js' ! -name '*.zip' ! -name 'package.json' ! -name 'package-lock.json' ! -name 'vitest.config.js' ! -name '.gitignore' ! -name 'ARCHITECTURE_REVIEW.md' ! -name 'CONTRIBUTING.md' ! -name 'Agent.md' ! -name '.DS_Store'`;
+  const findCommand = `find . -type f ! -path './.git/*' ! -path './.opencode/*' ! -path './openspec/*' ! -path './docs/*' ! -path './node_modules/*' ! -path './tests/*' ! -path './scripts/*' ! -path './dist/*' ! -path './build/*' ! -path './coverage/*' ! -path './.nyc_output/*' ! -path './temp/*' ! -name '*.test.js' ! -name '*.spec.js' ! -name '*.zip' ! -name 'package.json' ! -name 'package-lock.json' ! -name 'vitest.config.js' ! -name '.git' ! -name '.gitignore' ! -name 'ARCHITECTURE_REVIEW.md' ! -name 'CONTRIBUTING.md' ! -name 'Agent.md' ! -name '.DS_Store'`;
   
   const files = execSync(findCommand, { 
     encoding: 'utf-8',
@@ -37,6 +37,10 @@ try {
            !file.includes('node_modules/') && 
            !file.includes('tests/') && 
            !file.includes('scripts/') &&
+           file !== './.git' &&
+           !file.includes('.opencode/') &&
+           !file.includes('openspec/') &&
+           !file.includes('docs/') &&
            !file.endsWith('.test.js') &&
            !file.endsWith('.spec.js');
   });
@@ -76,6 +80,7 @@ try {
   console.log('   - Build config (vitest.config.js)');
   console.log('   - Git files (.git/, .gitignore)');
   console.log('   - Internal/development documentation (Agent.md, CONTRIBUTING.md, ARCHITECTURE_REVIEW.md)');
+  console.log('   - Development workflow directories (.opencode/, openspec/, docs/)');
   console.log('   - Build artifacts and existing zip archives');
   console.log('   - Scripts folder (scripts/)');
   console.log('\n🚀 Ready for distribution!');
