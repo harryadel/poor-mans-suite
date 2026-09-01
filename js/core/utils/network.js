@@ -29,6 +29,10 @@ export function highlightHTTP(text) {
         }
     }
 
+    const responseContentType = isResponse
+        ? getResponseContentType(lines, bodyStartIndex)
+        : '';
+
     let highlighted = '';
 
     for (let i = 0; i < lines.length; i++) {
@@ -91,9 +95,11 @@ export function highlightHTTP(text) {
             // Empty line between headers and body
             highlighted += '';
         } else {
-            // Body - try to detect and highlight JSON or Params
+            // Body - highlight known response formats or request params
             const bodyContent = lines.slice(bodyStartIndex + 1).join('\n');
-            let bodyHighlighted = highlightJSON(bodyContent);
+            let bodyHighlighted = isHTMLContentType(responseContentType)
+                ? highlightHTML(bodyContent)
+                : highlightJSON(bodyContent);
 
             // Only highlight params if NOT a response (so it's a request) AND not JSON
             if (!isResponse && bodyHighlighted === escapeHtml(bodyContent)) {
@@ -109,6 +115,40 @@ export function highlightHTTP(text) {
     }
 
     return highlighted;
+}
+
+function getResponseContentType(lines, bodyStartIndex) {
+    if (bodyStartIndex <= 1) return '';
+
+    for (let i = 1; i < bodyStartIndex; i++) {
+        const colonIndex = lines[i].indexOf(':');
+        if (colonIndex <= 0) continue;
+
+        const name = lines[i].substring(0, colonIndex).trim().toLowerCase();
+        if (name === 'content-type') {
+            return lines[i].substring(colonIndex + 1).trim().split(';', 1)[0].toLowerCase();
+        }
+    }
+
+    return '';
+}
+
+function isHTMLContentType(contentType) {
+    return contentType === 'text/html' || contentType === 'application/xhtml+xml';
+}
+
+function highlightHTML(text) {
+    const highlighter = globalThis.hljs;
+    if (!highlighter?.highlight || !highlighter?.getLanguage?.('xml')) {
+        return escapeHtml(text);
+    }
+
+    try {
+        const result = highlighter.highlight(text, { language: 'xml', ignoreIllegals: true });
+        return typeof result?.value === 'string' ? result.value : escapeHtml(text);
+    } catch (e) {
+        return escapeHtml(text);
+    }
 }
 
 function highlightJSON(text) {
@@ -171,4 +211,3 @@ function highlightCookies(text) {
         }
     }).join(';');
 }
-

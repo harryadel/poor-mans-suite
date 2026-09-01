@@ -2271,6 +2271,88 @@ tr.selected {
     /* Reddish */
 }
 
+/* HTML response syntax (Highlight.js XML grammar) */
+#raw-response-display {
+    --response-html-punctuation: #89ddff;
+    --response-html-tag: #c792ea;
+    --response-html-attribute: #ffa657;
+    --response-html-value: #c3e88d;
+    --response-html-comment: #7f8c98;
+}
+
+#raw-response-display .hljs-tag,
+#raw-response-display .hljs-meta {
+    color: var(--response-html-punctuation);
+}
+
+#raw-response-display .hljs-name,
+#raw-response-display .hljs-meta-keyword {
+    color: var(--response-html-tag);
+    font-weight: 600;
+}
+
+#raw-response-display .hljs-attr {
+    color: var(--response-html-attribute);
+}
+
+#raw-response-display .hljs-string,
+#raw-response-display .hljs-meta-string {
+    color: var(--response-html-value);
+}
+
+#raw-response-display .hljs-comment {
+    color: var(--response-html-comment);
+    font-style: italic;
+}
+
+.light-theme #raw-response-display {
+    --response-html-punctuation: #6a737d;
+    --response-html-tag: #005cc5;
+    --response-html-attribute: #d73a49;
+    --response-html-value: #032f62;
+    --response-html-comment: #6a737d;
+}
+
+.theme-modern-dark #raw-response-display {
+    --response-html-punctuation: #808080;
+    --response-html-tag: #569cd6;
+    --response-html-attribute: #9cdcfe;
+    --response-html-value: #ce9178;
+    --response-html-comment: #6a9955;
+}
+
+.theme-modern-light #raw-response-display {
+    --response-html-punctuation: #656d76;
+    --response-html-tag: #0969da;
+    --response-html-attribute: #8250df;
+    --response-html-value: #0a3069;
+    --response-html-comment: #6e7781;
+}
+
+.theme-blue #raw-response-display {
+    --response-html-punctuation: #8be9fd;
+    --response-html-tag: #ff79c6;
+    --response-html-attribute: #50fa7b;
+    --response-html-value: #f1fa8c;
+    --response-html-comment: #bd93f9;
+}
+
+.theme-high-contrast #raw-response-display {
+    --response-html-punctuation: #ffffff;
+    --response-html-tag: #00ffff;
+    --response-html-attribute: #00ff00;
+    --response-html-value: #ffff00;
+    --response-html-comment: #ff00ff;
+}
+
+.theme-terminal #raw-response-display {
+    --response-html-punctuation: #8b949e;
+    --response-html-tag: #58a6ff;
+    --response-html-attribute: #79c0ff;
+    --response-html-value: #a5d6ff;
+    --response-html-comment: #8b949e;
+}
+
 
 /* Tabs */
 .tabs {
