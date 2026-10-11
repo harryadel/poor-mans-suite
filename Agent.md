@@ -80,6 +80,18 @@ Fetch from `upstream` in the maintained checkout, review the incoming changes, a
 5. Publish `poor-mans-suite-extension.zip` and create the corresponding GitHub release or tag from `main`.
 6. Switch the maintained checkout back to `develop` before starting new work.
 
+## Spec-Driven Features with OpenSpec
+
+Every new feature or behavior change starts as an OpenSpec change under `openspec/changes/<change-name>/` before any implementation. Only trivial fixes with no user-visible behavior change (typos, copy tweaks, dependency bumps) may skip this.
+
+- `openspec/specs/<capability>/spec.md` holds the current, authoritative behavior of each capability. Read the relevant spec before changing a feature.
+- A change contains `proposal.md` (Why, What Changes, Capabilities, Impact), `tasks.md` (numbered checklist, ticked off as work lands), and `specs/<capability>/spec.md` deltas written as requirements with `#### Scenario:` blocks. Add `design.md` when the approach needs explanation. Follow the archived changes in `openspec/changes/archive/` as examples.
+- Name the change directory with a verb-first slug such as `add-bulk-replay-continuation-guards`.
+- Implement against the tasks, keep `tasks.md` current, and run `openspec validate <change-name> --strict` before opening a pull request.
+- After the work merges, run `openspec archive <change-name> -y` so the deltas fold into `openspec/specs/` and the change moves to `openspec/changes/archive/`. Commit the archive with the feature.
+- `openspec list` shows active changes; an empty list means the specs are the full baseline.
+- `openspec/` is excluded from production archives by `scripts/package.js`; keep it that way.
+
 ## Finishing Work
 
 - Run relevant targeted tests before publishing a maintained or upstream PR.
