@@ -1578,6 +1578,26 @@ body.theme-transitioning img {
     margin: 4px 0 0;
 }
 
+.setup-note {
+    margin-bottom: 12px;
+}
+
+.setup-note .help-text {
+    margin: 0 0 6px;
+}
+
+.setup-note pre {
+    margin: 0 0 6px;
+    padding: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: all;
+}
+
 /* Position Configuration */
 #positions-container {
     margin-top: 10px;

@@ -820,6 +820,11 @@
                     </div>
                 </div>
                 <div id="opencode-settings" class="provider-settings" style="display: none;">
+                    <div class="setup-note">
+                        <p class="help-text">OpenCode needs a local server. Install OpenCode, connect a model provider with the <code>/connect</code> command inside OpenCode, then start the server from an empty directory:</p>
+                        <pre class="setup-command"><code>OPENCODE_SERVER_PASSWORD="choose-a-password" opencode serve --hostname 127.0.0.1 --port 4096</code></pre>
+                        <p class="help-text">Enter the same password below. See the <a href="https://github.com/harryadel/poor-mans-suite#opencode-setup" target="_blank" rel="noopener">OpenCode Setup guide</a> to launch with an isolated home that keeps your personal AGENTS.md and CLAUDE.md out of the session.</p>
+                    </div>
                     <div class="form-group">
                         <label for="opencode-base-url">Server URL</label>
                         <input type="text" id="opencode-base-url" class="form-control" placeholder="http://127.0.0.1:4096">
