@@ -2,7 +2,7 @@
 
 ## Maintained Checkout and Branches
 
-- `/home/harry/Projects/poor-mans-suite` is the canonical maintained checkout and Chromium-loaded extension path.
+- `/home/harry/Projects/poor-mans-suite` is the canonical maintained checkout, the Chromium-loaded extension path, and the place where day-to-day editing happens. Edit there on `develop` or on a feature branch created from it, never in a separate worktree, so Chromium sees changes as soon as they are saved.
 - `develop` is the active integration branch for ongoing Poor Man's Suite development.
 - `main` is the publication branch and must represent the latest released extension. Do not commit routine development directly to `main`.
 - `origin` points to `https://github.com/harryadel/poor-mans-suite` for maintained-project work.
@@ -18,11 +18,11 @@ git -C /home/harry/Projects/poor-mans-suite pull --ff-only origin develop
 
 ## Updating the Loaded Extension
 
-Chromium reads the unpacked extension directly from `/home/harry/Projects/poor-mans-suite`; a GitHub push does not reload it.
+Chromium reads the unpacked extension directly from `/home/harry/Projects/poor-mans-suite`; a GitHub push does not reload it, and Chrome never hot-reloads an extension. What you must do depends on which files changed:
 
-1. Open `chrome://extensions`.
-2. Click **Reload** on **Poor Man's Suite**.
-3. Close and reopen DevTools so the Poor Man's Suite panel reloads.
+- `panel.html`, `js/`, `css/`: close and reopen DevTools. The panel page is loaded fresh from disk each time DevTools opens, so no extension reload is needed.
+- `background.js`, `manifest.json`, `devtools.html`, `devtools.js`: open `chrome://extensions`, click **Reload** on **Poor Man's Suite**, then close and reopen DevTools because reloading the extension removes its panel.
+- `rules/`: nothing to do; these are web-accessible resources read on each fetch.
 
 Do not load feature or upstream PR worktrees in Chromium. Keeping the loaded path fixed prevents branch switches and unfinished work from changing the daily extension unexpectedly.
 
