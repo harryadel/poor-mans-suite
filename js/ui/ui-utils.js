@@ -4,6 +4,7 @@ import { highlightHTTP } from '../core/utils/network.js';
 import { decodeJWT } from '../core/utils/misc.js';
 import { events, EVENT_NAMES } from '../core/events.js';
 import { elements } from './main-ui.js'; // Keep for context menu and undo/redo which need direct element access
+import { SIDEBAR_WIDTH_KEY, SPLIT_RATIO_KEY, readStoredNumber, writeStoredNumber } from './layout-mode.js';
 
 export function updateHistoryButtons() {
     // Update undo/redo buttons (renamed from history buttons)
@@ -87,7 +88,15 @@ export function setupResizeHandle() {
         responsePane.style.flex = '1';
     }
 
+    // Restore the split the user set last time (chat is closed at startup).
+    const savedRatio = readStoredNumber(SPLIT_RATIO_KEY, { min: 20, max: 80 });
+    if (savedRatio !== null) {
+        requestPane.style.flex = `0 0 ${savedRatio}%`;
+        responsePane.style.flex = `0 0 ${100 - savedRatio}%`;
+    }
+
     let isResizing = false;
+    let lastRatio = null;
 
     resizeHandle.addEventListener('mousedown', (e) => {
         isResizing = true;
@@ -113,6 +122,7 @@ export function setupResizeHandle() {
             const containerHeight = containerRect.height;
             let percentage = (offsetY / containerHeight) * 100;
             percentage = Math.max(20, Math.min(80, percentage));
+            lastRatio = percentage;
 
             requestPane.style.flex = `0 0 ${percentage}%`;
             responsePane.style.flex = `0 0 ${100 - percentage}%`;
@@ -166,6 +176,7 @@ export function setupResizeHandle() {
 
                 let percentage = (clampedOffsetX / containerWidth) * 100;
                 percentage = Math.max(20, Math.min(80, percentage));
+                lastRatio = percentage;
 
                 requestPane.style.flex = `0 0 ${percentage}%`;
                 responsePane.style.flex = `0 0 ${100 - percentage}%`;
@@ -177,6 +188,7 @@ export function setupResizeHandle() {
         if (isResizing) {
             isResizing = false;
             resizeHandle.classList.remove('resizing');
+            if (lastRatio !== null) writeStoredNumber(SPLIT_RATIO_KEY, Math.round(lastRatio * 10) / 10);
             if (previewIframe) {
                 previewIframe.style.pointerEvents = previewIframe.dataset.prevPointerEvents || '';
                 delete previewIframe.dataset.prevPointerEvents;
@@ -193,7 +205,13 @@ export function setupSidebarResize() {
 
     if (!resizeHandle || !sidebar) return;
 
+    const savedWidth = readStoredNumber(SIDEBAR_WIDTH_KEY, { min: 150, max: 600 });
+    if (savedWidth !== null) {
+        sidebar.style.width = `${savedWidth}px`;
+    }
+
     let isResizing = false;
+    let lastWidth = null;
 
     resizeHandle.addEventListener('mousedown', (e) => {
         isResizing = true;
@@ -208,6 +226,7 @@ export function setupSidebarResize() {
         const newWidth = e.clientX;
         if (newWidth >= 150 && newWidth <= 600) {
             sidebar.style.width = `${newWidth}px`;
+            lastWidth = newWidth;
         }
     });
 
@@ -215,6 +234,7 @@ export function setupSidebarResize() {
         if (isResizing) {
             isResizing = false;
             resizeHandle.classList.remove('resizing');
+            if (lastWidth !== null) writeStoredNumber(SIDEBAR_WIDTH_KEY, Math.round(lastWidth));
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }

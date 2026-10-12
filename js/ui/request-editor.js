@@ -1,4 +1,5 @@
 // Request Editor Module - Request/response editing and view switching
+import { SPLIT_RATIO_KEY, writeStoredNumber } from './layout-mode.js';
 import { escapeHtml } from '../core/utils/dom.js';
 import { state, actions } from '../core/state.js';
 import { highlightHTTP } from '../core/utils/network.js';
@@ -390,6 +391,7 @@ export function toggleLayout(save = true) {
 
     if (save) {
         localStorage.setItem('poor_mans_suite_layout_preference', isVertical ? 'vertical' : 'horizontal');
+        writeStoredNumber(SPLIT_RATIO_KEY, null);
     }
 }
 

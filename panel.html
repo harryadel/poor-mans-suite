@@ -199,9 +199,26 @@
 
         <!-- Sidebar Resize Handle -->
         <div class="resize-handle sidebar-resize-handle"></div>
+        <!-- Drawer backdrop (compact layout) -->
+        <div id="drawer-backdrop" class="drawer-backdrop"></div>
 
         <!-- Main Content: Vertical Split (Top: Request/Response, Bottom: Bulk Replay) -->
         <div class="main-content">
+            <!-- Compact layout: pane tabs, request list toggle, selected request -->
+            <div id="compact-tab-bar" class="compact-tab-bar">
+                <button id="compact-list-btn" class="icon-btn compact-list-btn" title="Request list (Ctrl/Cmd+Shift+L)" aria-label="Toggle request list" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M3 4h4v16H3V4zm5 0h16v2H8V4zm0 6h16v2H8v-2zm0 6h16v2H8v-2z" />
+                    </svg>
+                </button>
+                <div class="compact-tabs" role="tablist" aria-label="Panes"></div>
+                <div id="selected-request-summary" class="selected-request-summary" hidden></div>
+                <button id="compact-chat-btn" class="icon-btn compact-chat-btn" title="Poor Man's Suite AI Assistance" aria-label="Toggle AI chat">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z" />
+                    </svg>
+                </button>
+            </div>
             <!-- Top Section: Request/Response Split View -->
             <div class="split-view-container">
                 <!-- Request Editor (Top/Left) -->
@@ -209,7 +226,7 @@
                     <div class="pane-header">
                         <h3>Request</h3>
                         <div class="header-actions">
-                            <button id="show-sidebar-btn" class="icon-btn show-sidebar-btn" title="Show sidebar" aria-label="Show sidebar" style="display: none;">
+                            <button id="show-sidebar-btn" class="icon-btn show-sidebar-btn" data-no-overflow title="Show sidebar" aria-label="Show sidebar" style="display: none;">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                     <path d="M3 4h4v16H3V4zm5 0h16v2H8V4zm0 6h16v2H8v-2zm0 6h16v2H8v-2z" />
                                 </svg>
@@ -270,7 +287,23 @@
                                     <path d="M3 5v14h18V5H3zm16 12h-6V7h6v10zm-8 0H5V7h6v10z" fill="currentColor" />
                                 </svg>
                             </button>
-                            <button id="send-btn" class="primary-btn">Send</button>
+                            <div class="dropdown-menu-container layout-mode-container">
+                                <button id="layout-mode-btn" class="icon-btn" title="Layout: Automatic">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                        <path d="M4 4h16v4H4V4zm0 6h16v10H4V10zm2 2v6h12v-6H6z" />
+                                    </svg>
+                                </button>
+                                <div id="layout-mode-menu" class="dropdown-content layout-mode-menu">
+                                    <div class="dropdown-item" data-layout-mode="auto">Automatic (fit to panel)</div>
+                                    <div class="dropdown-item" data-layout-mode="wide">Wide (three columns)</div>
+                                    <div class="dropdown-item" data-layout-mode="compact">Compact (tabs and drawer)</div>
+                                </div>
+                            </div>
+                            <div class="dropdown-menu-container header-overflow" hidden>
+                                <button type="button" class="icon-btn header-overflow-btn" title="More actions" aria-label="More actions">&#8943;</button>
+                                <div class="dropdown-content header-overflow-menu"></div>
+                            </div>
+                            <button id="send-btn" class="primary-btn" data-no-overflow>Send</button>
                         </div>
                     </div>
                     <div class="pane-tabs">
@@ -318,7 +351,7 @@
                     <div class="pane-header">
                         <h3>Response</h3>
                         <div class="header-actions">
-                            <div class="header-badges">
+                            <div class="header-badges" data-no-overflow>
                                 <span id="res-status" class="status-badge"></span>
                                 <span id="res-time" class="time-badge"></span>
                                 <span id="res-size" class="size-badge"></span>
@@ -374,6 +407,10 @@
                                     <div class="theme-menu-item" data-theme="high-contrast">🔆 High Contrast</div>
                                     <div class="theme-menu-item" data-theme="terminal">🖥️ Terminal</div>
                                 </div>
+                            </div>
+                            <div class="dropdown-menu-container header-overflow" hidden>
+                                <button type="button" class="icon-btn header-overflow-btn" title="More actions" aria-label="More actions">&#8943;</button>
+                                <div class="dropdown-content header-overflow-menu"></div>
                             </div>
                         </div>
                     </div>

@@ -97,6 +97,7 @@ export const EVENT_NAMES = {
     UI_THEME_CHANGED: 'ui:theme-changed',
     UI_VIEW_SWITCHED: 'ui:view-switched',
     UI_LAYOUT_TOGGLED: 'ui:layout-toggled',
+    UI_LAYOUT_MODE_CHANGED: 'ui:layout-mode-changed',
     UI_REQUEST_SELECTED: 'ui:request-selected',
     UI_UPDATE_REQUEST_CONTENT: 'ui:update-request-content',
     UI_GET_REQUEST_CONTENT: 'ui:get-request-content',

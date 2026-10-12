@@ -1,5 +1,6 @@
 // Sidebar Module - Handles sidebar hide/show toggle
 import { elements } from './main-ui.js';
+import { isCompactLayout } from './layout-mode.js';
 
 /**
  * Sets up sidebar hide/show toggle functionality
@@ -34,6 +35,13 @@ export function setupSidebar() {
     if (elements.toggleSidebarBtn) {
         elements.toggleSidebarBtn.addEventListener('click', () => {
             const container = document.querySelector('.container');
+            if (isCompactLayout(container)) {
+                // The list is a drawer here: close it without touching the wide-layout preference.
+                container.classList.remove('drawer-open');
+                document.getElementById('compact-list-btn')?.classList.remove('active');
+                document.getElementById('compact-list-btn')?.setAttribute('aria-expanded', 'false');
+                return;
+            }
             const isHidden = container && container.classList.contains('sidebar-hidden');
             toggleSidebarVisibility(!isHidden);
         });

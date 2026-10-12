@@ -28,6 +28,7 @@ import { setupFilters } from './ui/filters.js';
 import { setupSidebar } from './ui/sidebar.js';
 import { setupViewTabs } from './ui/view-tabs.js';
 import { setupRawRequestEditor, initLayoutToggle, initPreviewControls } from './ui/request-editor.js';
+import { setupLayoutMode } from './ui/layout-mode.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize UI Elements
@@ -114,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPreviewControls();
     setupRawRequestEditor(elements.rawRequestInput, elements.sendBtn);
     initLayoutToggle(elements.layoutToggleBtn);
+    setupLayoutMode();
 
     // Send Request
     if (elements.sendBtn) {

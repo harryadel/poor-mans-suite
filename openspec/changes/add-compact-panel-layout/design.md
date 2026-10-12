@@ -1,0 +1,18 @@
+## Context
+
+`.container` in `panel.html` holds `.sidebar` (350px, resizable 150 to 600px, hide state in `poor_mans_suite_sidebar_hidden`) and `.main-content`. Inside it, `.split-view-container` is a flex row of `.request-pane`, `.pane-resize-handle`, `.response-pane`, and the optional `#llm-chat-pane`, with `.vertical-layout` (persisted in `poor_mans_suite_layout_preference`) turning the row into a column. `#bulk-replay-pane` sits below the split view as a 200px strip. `toggleLayout()` in `js/ui/request-editor.js`, `setupSidebar()` in `js/ui/sidebar.js`, and `setupResizeHandle()` / `setupSidebarResize()` in `js/ui/ui-utils.js` own this behavior. Each `.pane-header` is 48px with wrapping actions, followed by a `.pane-tabs` row for Pretty, Raw, and Hex.
+
+## Approach
+
+- Add `js/ui/layout-mode.js` with a pure `resolveLayoutMode({ width, height, override })` and a `setupLayoutMode()` that observes `document.body` and sets `data-layout="wide|compact"` on `.container`. Compact is chosen when the panel is under 500px tall or under 900px wide. The override (`auto`, `wide`, `compact`) lives in `poor_mans_suite_layout_mode`; missing or invalid storage means `auto`. Tests call `resolveLayoutMode` directly and drive `setupLayoutMode` with an injected observer, because jsdom has no `ResizeObserver`.
+- Keep the DOM the same in both modes and let CSS under `[data-layout="compact"]` restyle it, so the editor, response viewers, chat, and Bulk Replay modules do not change their element references. The existing pane elements gain `data-tab` names; a new `.compact-tabs` strip in the pane header shows Request, Response, Chat, and Bulk Replay, with the last two present only while their panes are open today.
+- Compact tab switching sets `data-active-tab` on `.split-view-container`; CSS hides the other panes with `display: none`. Hidden panes keep their state, so a streaming chat turn or a running Bulk Replay continues. Send switches to the Response tab, and the Request tab shows the last status code from the existing response-render path. Mode changes map the current pane state onto the new layout and never clear content.
+- The request list drawer reuses `.sidebar` with `position: absolute` over `.main-content`, a backdrop, and open state in `.container.drawer-open`. Opening uses the existing show-sidebar button and a keyboard shortcut; selecting a request, pressing Escape, or clicking the backdrop closes it. A `#selected-request-summary` in the pane header shows method and URL of the selected request, updated from the same event that fills the editor.
+- Header compaction merges `.pane-header` and `.pane-tabs` into one 32px row in compact mode. Actions move into a single `#pane-overflow-menu` dropdown, built from the same button elements, when a `ResizeObserver` on the header reports overflow. The overflow menu reuses the existing `.dropdown-menu-container` pattern.
+- Persist the sidebar width in `poor_mans_suite_sidebar_width` and the wide-mode split ratio in `poor_mans_suite_split_ratio` from the existing resize handlers, restored on load before the first paint.
+- Keyboard shortcuts must avoid Chrome's tab switching (Ctrl or Alt plus a digit) and DevTools' panel switching (Ctrl plus bracket). Proposed: Ctrl/Cmd+Shift+L toggles the request list drawer, and Ctrl/Cmd+Shift+. and Ctrl/Cmd+Shift+, move to the next and previous compact tab. Verify in a docked Chromium before finalizing.
+
+## Security boundaries
+
+- Only layout preferences are stored. Request bodies, responses, and chat content stay where they are today and are never written by this change.
+- The drawer and overflow menu are built from existing DOM elements, not from captured data, so no new HTML injection surface is introduced.

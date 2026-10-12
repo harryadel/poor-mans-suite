@@ -5983,3 +5983,325 @@ pre {
         transform: translateX(0);
     }
 }
+
+/* ==========================================================================
+   Layout modes: wide (three columns) and compact (tabs + drawer)
+   ========================================================================== */
+
+.container {
+    position: relative;
+}
+
+/* Compact tab bar lives above the panes and is hidden in the wide layout. */
+.compact-tab-bar {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 0 8px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.container[data-layout="compact"] .compact-tab-bar {
+    display: flex;
+}
+
+.compact-list-btn.active {
+    color: var(--accent-color);
+    background: var(--hover-bg);
+}
+
+.compact-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.compact-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary, #9aa0a6);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.compact-tab:hover {
+    color: var(--text-color);
+}
+
+.compact-tab.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+.compact-tab[hidden] {
+    display: none;
+}
+
+.compact-tab-chip {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: var(--hover-bg);
+    color: var(--text-color);
+}
+
+.compact-tab-chip[hidden] {
+    display: none;
+}
+
+.compact-tab-chip.status-2xx { background: rgba(129, 201, 149, 0.25); color: var(--success-color); }
+.compact-tab-chip.status-3xx { background: rgba(138, 180, 248, 0.25); color: var(--accent-color); }
+.compact-tab-chip.status-4xx { background: rgba(251, 188, 4, 0.25); color: #fbbc04; }
+.compact-tab-chip.status-5xx { background: rgba(242, 139, 130, 0.25); color: var(--error-color); }
+
+.selected-request-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-secondary, #9aa0a6);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.selected-request-summary[hidden] {
+    display: none;
+}
+
+.selected-request-summary .summary-method {
+    font-weight: 700;
+    color: var(--text-color);
+    flex-shrink: 0;
+}
+
+.selected-request-summary .summary-url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Request list as a drawer. */
+.drawer-backdrop {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 40;
+}
+
+.container[data-layout="compact"] .sidebar {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(380px, 85%) !important;
+    max-width: none;
+    z-index: 41;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.45);
+    border-right: 1px solid var(--border-color);
+}
+
+.container[data-layout="compact"].drawer-open .sidebar {
+    display: flex;
+}
+
+.container[data-layout="compact"].drawer-open .drawer-backdrop {
+    display: block;
+}
+
+.container[data-layout="compact"] .sidebar-resize-handle,
+.container[data-layout="compact"] .pane-resize-handle,
+.container[data-layout="compact"] .vertical-resize-handle,
+.container[data-layout="compact"] #layout-toggle-btn,
+.container[data-layout="compact"] .show-sidebar-btn {
+    display: none !important;
+}
+
+.header-overflow-menu > [hidden],
+.container[data-layout="compact"] .header-overflow-menu > #layout-toggle-btn,
+.container[data-layout="compact"] .header-overflow-menu > .show-sidebar-btn {
+    display: none !important;
+}
+
+/* One pane at a time. Panes keep their state while hidden. */
+.container[data-layout="compact"] .split-view-container {
+    flex-direction: row;
+    min-height: 0;
+}
+
+.container[data-layout="compact"] .split-view-container > .pane {
+    display: none !important;
+}
+
+.container[data-layout="compact"] .split-view-container > .pane.compact-active {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 100%;
+    border: none;
+}
+
+.container[data-layout="compact"] .main-content > .bulk-replay-pane {
+    display: none !important;
+}
+
+.container[data-layout="compact"] .main-content.compact-bulk-active > .split-view-container {
+    display: none;
+}
+
+.container[data-layout="compact"] .main-content.compact-bulk-active > .bulk-replay-pane.compact-active {
+    display: flex !important;
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0;
+    border-top: none;
+}
+
+/* Header and view tabs share one row. */
+.container[data-layout="compact"] .split-view-container > .request-pane.compact-active,
+.container[data-layout="compact"] .split-view-container > .response-pane.compact-active {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.container[data-layout="compact"] .request-pane > .pane-tabs,
+.container[data-layout="compact"] .response-pane > .pane-tabs {
+    grid-row: 1;
+    grid-column: 1;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--sidebar-bg);
+    padding: 0 4px;
+    align-items: stretch;
+}
+
+.container[data-layout="compact"] .request-pane > .pane-header,
+.container[data-layout="compact"] .response-pane > .pane-header {
+    grid-row: 1;
+    grid-column: 2;
+    min-height: 32px;
+    padding: 2px 8px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    /* Dropdowns open out of this row, so it must not clip. */
+    overflow: visible;
+    min-width: 0;
+}
+
+.container[data-layout="compact"] .request-pane > .pane-body,
+.container[data-layout="compact"] .response-pane > .pane-body {
+    grid-row: 2;
+    grid-column: 1 / 3;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.container[data-layout="compact"] .pane-header h3 {
+    display: none;
+}
+
+.container[data-layout="compact"] .pane-header .header-actions {
+    flex-wrap: nowrap;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* Actions keep their size so the header overflows measurably instead of squashing. */
+.container[data-layout="compact"] .pane-header .header-actions > * {
+    flex-shrink: 0;
+}
+
+.compact-chat-btn.active {
+    color: var(--accent-color);
+}
+
+.container[data-layout="compact"] .view-tab {
+    padding: 6px 8px;
+}
+
+.container[data-layout="compact"] .llm-chat-pane {
+    border-left: none;
+}
+
+/* Overflow menu for header actions that do not fit. */
+.header-overflow[hidden] {
+    display: none;
+}
+
+.header-overflow-menu {
+    left: auto;
+    right: 0;
+    min-width: 220px;
+    padding: 4px 0;
+}
+
+.header-overflow-menu > * {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 12px;
+    border-radius: 0;
+    justify-content: flex-start;
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+.header-overflow-menu > .icon-btn[title]::after,
+.header-overflow-menu > .dropdown-menu-container > .icon-btn[title]::after,
+.header-overflow-menu > .theme-selector-wrapper > .icon-btn[title]::after {
+    content: attr(title);
+    white-space: nowrap;
+}
+
+.header-overflow-menu > .dropdown-menu-container > .icon-btn,
+.header-overflow-menu > .theme-selector-wrapper > .icon-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: flex-start;
+    font-size: 12px;
+    color: var(--text-color);
+}
+
+.header-overflow-menu > .divider-vertical {
+    display: none;
+}
+
+.header-overflow-menu > .history-nav {
+    gap: 8px;
+}
+
+.header-overflow-menu > .dropdown-menu-container,
+.header-overflow-menu > .theme-selector-wrapper {
+    display: block;
+}
+
+.layout-mode-menu {
+    left: auto;
+    right: 0;
+}
+
+.layout-mode-menu .dropdown-item.active {
+    color: var(--accent-color);
+    font-weight: 600;
+}

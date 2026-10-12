@@ -52,6 +52,7 @@ Poor Man's Suite does not currently have a Chrome Web Store listing. Install it 
 
 ### Views & Editing
 - Pretty / Raw / Hex views; layout toggle (horizontal/vertical).
+- Compact layout for small or bottom-docked DevTools: Request, Response, Chat, and Bulk Replay become tabs of one pane and the request list opens as a drawer. It switches on automatically when the panel is under 500px tall or 900px wide; the layout menu in the Request header forces Automatic, Wide, or Compact. Shortcuts: `Ctrl/Cmd+Shift+L` toggles the request list, `Ctrl/Cmd+Shift+.` and `Ctrl/Cmd+Shift+,` move between tabs. Sidebar width and the Request/Response split are remembered.
 - Converters: Base64, URL encode/decode, JWT decode, Hex/UTF-8.
 - History, undo/redo, and syntax highlighting for requests/responses.
 - Context menu helpers on the request editor:
