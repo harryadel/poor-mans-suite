@@ -63,6 +63,7 @@ Poor Man's Suite does not currently have a Chrome Web Store listing. Install it 
 ### Bulk & Automation
 - Bulk replay with 4 attack modes: Sniper, Battering Ram, Pitchfork, Cluster Bomb.
 - Mark positions with `§`, configure payloads, pause/resume long runs.
+- Remove a position or edit its value from the configuration modal; the request editor follows the change, and the other positions keep their payloads.
 - Response diff view to spot changes between baseline and attempts.
 
 ### Extractors & Search

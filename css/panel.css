@@ -6305,3 +6305,27 @@ pre {
     color: var(--accent-color);
     font-weight: 600;
 }
+
+
+/* Bulk Replay payload position controls */
+.position-remove-btn {
+    font-size: 11px;
+    padding: 2px 8px;
+}
+
+.position-remove-btn:disabled,
+.position-value-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.position-value-input {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+}
+
+.positions-empty {
+    margin: 4px 0;
+    font-size: 12px;
+    color: var(--error-color);
+}

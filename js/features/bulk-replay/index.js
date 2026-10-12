@@ -8,6 +8,7 @@ import { highlightHTTP } from '../../core/utils/network.js';
 import { renderDiff } from '../../core/utils/misc.js';
 import { escapeHtml } from '../../core/utils/dom.js';
 import { requestReplayPermission } from '../../network/permissions.js';
+import { findTemplatePositions, removeTemplatePosition, setTemplatePositionValue, PAYLOAD_MARKER } from './positions.js';
 import { formatRawResponse } from '../../network/response-parser.js';
 import {
     activateRepeaterContext,
@@ -491,9 +492,13 @@ export function setupBulkReplay() {
         if (element) element.textContent = value;
     }
 
+    function hasTemplatePositions() {
+        return findTemplatePositions(state.bulkReplayTemplate).length > 0;
+    }
+
     function refreshReviewValidation(statusMessage = null) {
         if (!reviewSession) {
-            if (startAttackBtn) startAttackBtn.disabled = bulkRunPhase !== 'idle';
+            if (startAttackBtn) startAttackBtn.disabled = bulkRunPhase !== 'idle' || !hasTemplatePositions();
             return null;
         }
 
@@ -594,7 +599,7 @@ export function setupBulkReplay() {
         renderModalConfiguration();
         hideReviewUI();
         if (hideModal && bulkConfigModal) bulkConfigModal.style.display = 'none';
-        if (startAttackBtn) startAttackBtn.disabled = bulkRunPhase !== 'idle';
+        if (startAttackBtn) startAttackBtn.disabled = bulkRunPhase !== 'idle' || !hasTemplatePositions();
         notifyReviewStatus(discardedSession, 'discarded');
         return true;
     }
@@ -803,9 +808,55 @@ export function setupBulkReplay() {
         });
     }
 
+    function syncEditorTemplate(previousTemplate, nextTemplate) {
+        const editor = elements.rawRequestInput;
+        if (!editor) return;
+        const currentText = editor.innerText || editor.textContent || '';
+        // Only follow the editor when it still shows the exact text this configuration came from.
+        if (currentText !== previousTemplate) return;
+        editor.textContent = nextTemplate;
+        editor.innerHTML = highlightHTTP(nextTemplate);
+        if (Object.prototype.hasOwnProperty.call(editor, 'innerText')) {
+            // Environments without layout (tests) expose innerText as a plain property.
+            editor.innerText = nextTemplate;
+        }
+        const rawRequestTextarea = elements.rawRequestTextarea || document.getElementById('raw-request-textarea');
+        if (rawRequestTextarea) rawRequestTextarea.value = nextTemplate;
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function applyTemplateChange(nextTemplate, nextConfigs, { rerender = true } = {}) {
+        const previousTemplate = state.bulkReplayTemplate;
+        const positions = findTemplatePositions(nextTemplate);
+        nextConfigs.forEach((config, index) => {
+            config.index = index;
+            config.originalValue = positions[index]?.value ?? config.originalValue ?? '';
+        });
+        state.bulkReplayTemplate = nextTemplate;
+        state.positionConfigs = nextConfigs;
+        syncEditorTemplate(previousTemplate, nextTemplate);
+        if (rerender) {
+            renderModalConfiguration();
+        } else {
+            const payloadCount = document.getElementById('payload-count');
+            if (payloadCount) payloadCount.textContent = String(positions.length);
+        }
+        refreshReviewValidation();
+    }
+
     function populatePositionsContainer(matches) {
         const container = document.getElementById('positions-container');
         container.innerHTML = '';
+        const locked = reviewSession !== null;
+        const lockTitle = 'Positions are frozen while a chat draft is under review. Cancel the review to change them.';
+
+        if (matches.length === 0) {
+            const note = document.createElement('p');
+            note.className = 'positions-empty';
+            note.textContent = `No payload positions left. Mark text with ${PAYLOAD_MARKER} in the request to add one; at least one position is required to start.`;
+            container.appendChild(note);
+            return;
+        }
 
         matches.forEach((match, index) => {
             const cleanValue = match.replace(/§/g, '');
@@ -815,7 +866,11 @@ export function setupBulkReplay() {
             card.innerHTML = `
                 <div class="position-card-header">
                     <span class="position-title">Position ${index + 1}</span>
-                    <span class="position-value">${escapeHtml(cleanValue.substring(0, 30))}${cleanValue.length > 30 ? '...' : ''}</span>
+                    <button type="button" class="position-remove-btn secondary-btn" data-index="${index}" title="Remove this position and keep its text unmarked">Remove</button>
+                </div>
+                <div class="form-group">
+                    <label>Value</label>
+                    <input type="text" class="position-value-input form-control" data-index="${index}" placeholder="Text between the markers" spellcheck="false">
                 </div>
                 <div class="form-group">
                     <label>Payload Type</label>
@@ -855,6 +910,33 @@ export function setupBulkReplay() {
             const fromInput = card.querySelector('.num-from-input');
             const toInput = card.querySelector('.num-to-input');
             const stepInput = card.querySelector('.num-step-input');
+            const valueInput = card.querySelector('.position-value-input');
+            const removeBtn = card.querySelector('.position-remove-btn');
+            valueInput.value = cleanValue;
+            valueInput.disabled = locked;
+            removeBtn.disabled = locked;
+            if (locked) {
+                valueInput.title = lockTitle;
+                removeBtn.title = lockTitle;
+            }
+            removeBtn.addEventListener('click', () => {
+                if (reviewSession) return;
+                applyTemplateChange(
+                    removeTemplatePosition(state.bulkReplayTemplate, index),
+                    state.positionConfigs.filter((_, configIndex) => configIndex !== index)
+                );
+            });
+            valueInput.addEventListener('input', () => {
+                if (reviewSession) return;
+                if (valueInput.value.includes(PAYLOAD_MARKER)) {
+                    valueInput.value = valueInput.value.split(PAYLOAD_MARKER).join('');
+                }
+                applyTemplateChange(
+                    setTemplatePositionValue(state.bulkReplayTemplate, index, valueInput.value),
+                    state.positionConfigs,
+                    { rerender: false }
+                );
+            });
             typeSelect.value = config.type;
             listInput.value = config.list;
             fromInput.value = config.numbers.from;

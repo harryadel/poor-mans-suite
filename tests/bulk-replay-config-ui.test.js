@@ -257,6 +257,102 @@ describe('Bulk Replay configuration persistence', () => {
         expect(controller.getStatus().phase).toBe('idle');
     });
 
+    function openModalWithTwoPositions() {
+        const template = 'GET /login?username=§candidate§&role=§user§ HTTP/1.1\nHost: example.test\n\n';
+        uiMocks.elements.rawRequestInput.innerText = template;
+        uiMocks.elements.rawRequestInput.dispatchEvent(new Event('input'));
+        const controller = setupBulkReplay();
+        document.getElementById('bulk-replay-btn').click();
+        return { controller, template };
+    }
+
+    it('removes a position from the modal, keeps the other payloads, and syncs the editor', () => {
+        openModalWithTwoPositions();
+        const cards = document.querySelectorAll('.position-card');
+        expect(cards).toHaveLength(2);
+        const secondList = cards[1].querySelector('.payload-list-input');
+        secondList.value = 'admin\nroot';
+        secondList.dispatchEvent(new Event('input'));
+
+        cards[0].querySelector('.position-remove-btn').click();
+
+        const expected = 'GET /login?username=candidate&role=§user§ HTTP/1.1\nHost: example.test\n\n';
+        expect(state.bulkReplayTemplate).toBe(expected);
+        expect(uiMocks.elements.rawRequestInput.innerText).toBe(expected);
+        expect(document.getElementById('payload-count').textContent).toBe('1');
+        const remaining = document.querySelectorAll('.position-card');
+        expect(remaining).toHaveLength(1);
+        expect(remaining[0].querySelector('.position-title').textContent).toBe('Position 1');
+        expect(remaining[0].querySelector('.position-value-input').value).toBe('user');
+        expect(remaining[0].querySelector('.payload-list-input').value).toBe('admin\nroot');
+        expect(state.positionConfigs).toEqual([expect.objectContaining({ index: 0, originalValue: 'user', list: 'admin\nroot' })]);
+        expect(document.getElementById('start-attack-btn').disabled).toBe(false);
+
+        document.querySelector('.close-modal').click();
+        document.getElementById('bulk-replay-btn').click();
+        expect(document.querySelector('.position-card .payload-list-input').value).toBe('admin\nroot');
+    });
+
+    it('edits a position value in place and strips marker characters', () => {
+        openModalWithTwoPositions();
+        const firstCard = document.querySelector('.position-card');
+        const firstList = firstCard.querySelector('.payload-list-input');
+        firstList.value = 'alice';
+        firstList.dispatchEvent(new Event('input'));
+        const valueInput = firstCard.querySelector('.position-value-input');
+
+        valueInput.value = 'bob';
+        valueInput.dispatchEvent(new Event('input'));
+
+        expect(state.bulkReplayTemplate).toBe('GET /login?username=§bob§&role=§user§ HTTP/1.1\nHost: example.test\n\n');
+        expect(uiMocks.elements.rawRequestInput.innerText).toBe(state.bulkReplayTemplate);
+        expect(state.positionConfigs[0]).toMatchObject({ originalValue: 'bob', list: 'alice' });
+        expect(document.activeElement === valueInput || document.querySelector('.position-value-input') === valueInput).toBe(true);
+
+        valueInput.value = 'b§ob§';
+        valueInput.dispatchEvent(new Event('input'));
+        expect(valueInput.value).toBe('bob');
+        expect(document.getElementById('payload-count').textContent).toBe('2');
+        expect(state.bulkReplayTemplate).toContain('username=§bob§&');
+    });
+
+    it('leaves a changed editor alone and disables Start when the last position is removed', () => {
+        openModalWithTwoPositions();
+        uiMocks.elements.rawRequestInput.innerText = 'GET /other HTTP/1.1\nHost: example.test\n\n';
+
+        document.querySelector('.position-card .position-remove-btn').click();
+        expect(uiMocks.elements.rawRequestInput.innerText).toBe('GET /other HTTP/1.1\nHost: example.test\n\n');
+        expect(state.bulkReplayTemplate).toBe('GET /login?username=candidate&role=§user§ HTTP/1.1\nHost: example.test\n\n');
+
+        document.querySelector('.position-card .position-remove-btn').click();
+        expect(document.getElementById('payload-count').textContent).toBe('0');
+        expect(document.querySelectorAll('.position-card')).toHaveLength(0);
+        expect(document.querySelector('#positions-container .positions-empty').textContent).toMatch(/at least one position/);
+        expect(document.getElementById('start-attack-btn').disabled).toBe(true);
+        expect(state.positionConfigs).toEqual([]);
+    });
+
+    it('locks position controls during a draft review and unlocks them after discard', () => {
+        const controller = setupBulkReplay();
+        state.bulkReplayTemplate = 'GET /manual?value=§old§ HTTP/1.1\nHost: manual.test\n\n';
+        state.positionConfigs = [{ index: 0, originalValue: 'old', type: 'simple-list', list: 'one', numbers: { from: 1, to: 10, step: 1 } }];
+        const { snapshot, draft } = createReviewDraft();
+        expect(controller.reviewDraft({ snapshot, draft, projectedRequestCount: 2 }).accepted).toBe(true);
+
+        const removeBtn = document.querySelector('.position-card .position-remove-btn');
+        const valueInput = document.querySelector('.position-card .position-value-input');
+        expect(removeBtn.disabled).toBe(true);
+        expect(valueInput.disabled).toBe(true);
+        expect(removeBtn.title).toMatch(/frozen/);
+        removeBtn.click();
+        expect(state.bulkReplayTemplate).toBe(draft.template);
+
+        document.getElementById('cancel-bulk-review-btn').click();
+        expect(document.querySelector('.position-card .position-remove-btn').disabled).toBe(false);
+        expect(document.querySelector('.position-card .position-value-input').disabled).toBe(false);
+        expect(document.querySelector('.position-card .position-value-input').value).toBe('old');
+    });
+
     it('retains, edits, and removes a continuation guard with its matcher', () => {
         setupBulkReplay();
 
@@ -374,7 +470,7 @@ describe('Bulk Replay configuration persistence', () => {
         controller.reviewDraft({ snapshot, draft, projectedRequestCount: 1, onStatus: vi.fn() });
 
         expect(document.querySelector('.position-card img')).toBeNull();
-        expect(document.querySelector('.position-value').textContent).toContain('<img');
+        expect(document.querySelector('.position-value-input').value).toContain('<img');
         expect(globalThis.__bulkXss).toBeUndefined();
     });
 
