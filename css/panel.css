@@ -6154,15 +6154,20 @@ pre {
     display: flex !important;
     position: absolute;
     inset: 0;
-    visibility: hidden;
+    z-index: 0;
+    /* Not visibility:hidden: innerText skips invisible nodes and would lose line breaks. */
+    clip-path: inset(100%);
+    opacity: 0;
     pointer-events: none;
     min-width: 0 !important;
 }
 
 .container[data-layout="compact"] .split-view-container > .pane.compact-active {
     display: flex !important;
-    position: static;
-    visibility: visible;
+    position: relative;
+    z-index: 1;
+    clip-path: none;
+    opacity: 1;
     pointer-events: auto;
     flex: 1 1 auto !important;
     width: auto !important;
@@ -6178,8 +6183,15 @@ pre {
 .container[data-layout="compact"] .main-content.compact-bulk-active > .split-view-container {
     position: absolute;
     inset: 0;
-    visibility: hidden;
+    z-index: 0;
+    clip-path: inset(100%);
+    opacity: 0;
     pointer-events: none;
+}
+
+.container[data-layout="compact"] .main-content.compact-bulk-active > .bulk-replay-pane.compact-active {
+    position: relative;
+    z-index: 1;
 }
 
 .container[data-layout="compact"] .main-content.compact-bulk-active > .bulk-replay-pane.compact-active {

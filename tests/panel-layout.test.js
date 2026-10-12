@@ -239,8 +239,9 @@ describe('setupLayoutMode', () => {
         const css = readFileSync('css/panel.css', 'utf8');
         const rule = css.slice(css.indexOf('.container[data-layout="compact"] .split-view-container > .pane {'));
         const body = rule.slice(0, rule.indexOf('}'));
-        expect(body).toContain('visibility: hidden');
+        expect(body).toContain('clip-path: inset(100%)');
         expect(body).not.toContain('display: none');
+        expect(body).not.toContain('visibility: hidden');
     });
 
     it('switches tabs by click and keyboard and keeps hidden pane content', () => {
