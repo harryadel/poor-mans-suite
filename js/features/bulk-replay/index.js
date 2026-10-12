@@ -728,7 +728,9 @@ export function setupBulkReplay() {
     function checkPayloadMarkers() {
         if (!bulkReplayBtn || !elements.rawRequestInput) return;
 
-        const content = elements.rawRequestInput.innerText;
+        // textContent is enough to find markers and never forces a layout of the editor.
+        // innerText only serves environments without layout, where tests set it directly.
+        const content = elements.rawRequestInput.textContent || elements.rawRequestInput.innerText || '';
         const hasMarkers = /§[\s\S]*?§/.test(content);
         const hasSavedTemplate = /§[\s\S]*?§/.test(state.bulkReplayTemplate || '');
 

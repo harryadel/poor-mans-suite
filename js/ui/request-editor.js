@@ -410,7 +410,9 @@ export function setupRawRequestEditor(rawRequestInput, sendBtn) {
     // Sync textarea to main input
     rawReqTextarea.addEventListener('input', () => {
         if (rawRequestInput) {
-            rawRequestInput.innerText = rawReqTextarea.value;
+            // One text node keeps every keystroke cheap and keeps line breaks readable
+            // while the Pretty view is hidden; it is re-highlighted on the way back.
+            rawRequestInput.textContent = rawReqTextarea.value;
         }
     });
 
@@ -457,6 +459,13 @@ export function switchRequestView(view) {
         'hex': elements.reqViewHex || document.getElementById('req-view-hex')
     };
     
+    // Read the content before any view is hidden: a hidden editor reports its
+    // text without line breaks, and the Raw textarea is authoritative while shown.
+    const rawInput = elements.rawRequestInput || document.getElementById('raw-request-input');
+    const rawTextarea = elements.rawRequestTextarea || document.getElementById('raw-request-textarea');
+    const rawViewActive = viewElements.raw?.classList.contains('active');
+    let content = rawViewActive && rawTextarea ? rawTextarea.value : (rawInput ? rawInput.innerText : '');
+
     ['pretty', 'raw', 'hex'].forEach(v => {
         const el = viewElements[v];
         if (el) {
@@ -465,31 +474,18 @@ export function switchRequestView(view) {
         }
     });
 
-    // Sync Content - emit event to get current content
-    let content = '';
-    events.emit('ui:get-request-content', (text) => {
-        content = text;
-    });
-    
-    // Fallback: try to get from elements object or DOM directly
-    const rawInput = elements.rawRequestInput || document.getElementById('raw-request-input');
-    if (rawInput) {
-        content = rawInput.innerText;
-    }
-
     if (view === 'raw') {
-        const textarea = elements.rawRequestTextarea || document.getElementById('raw-request-textarea');
-        if (textarea) textarea.value = content;
+        if (rawTextarea) rawTextarea.value = content;
     } else if (view === 'hex') {
         const hexDisplay = elements.reqHexDisplay || document.getElementById('req-hex-display');
         if (hexDisplay) hexDisplay.textContent = generateHexView(content);
     } else if (view === 'pretty') {
-        // Ensure pretty view is up to date if coming from raw
-        const textarea = elements.rawRequestTextarea || document.getElementById('raw-request-textarea');
-        if (textarea && textarea.value !== content) {
+        // Coming from Raw, the editor holds plain text from the keystroke sync, so
+        // re-highlight it; otherwise only refresh when the sources drifted apart.
+        if (rawTextarea && (rawViewActive || rawTextarea.value !== content)) {
             events.emit('ui:update-request-content', {
-                text: textarea.value,
-                highlighted: highlightHTTP(textarea.value)
+                text: rawTextarea.value,
+                highlighted: highlightHTTP(rawTextarea.value)
             });
         }
     }

@@ -4,6 +4,7 @@ import { getHostname, highlightHTTP } from '../core/utils/network.js';
 import { events, EVENT_NAMES } from '../core/events.js';
 import { selectRequest, switchRequestView, switchResponseView, toggleLayout, initPreviewControls, updatePreview } from './request-editor.js';
 import { generateHexView } from './hex-view.js';
+import { escapeHtml } from '../core/utils/dom.js';
 import { generateJsonView } from './json-view.js';
 
 // DOM Elements (initialized in initUI)
@@ -270,8 +271,7 @@ function setupEventListeners() {
     // Update request content
     events.on(EVENT_NAMES.UI_UPDATE_REQUEST_CONTENT, ({ text, highlighted }) => {
         if (elements.rawRequestInput) {
-            elements.rawRequestInput.innerText = text;
-            elements.rawRequestInput.innerHTML = highlighted;
+            elements.rawRequestInput.innerHTML = highlighted || escapeHtml(text || '');
         }
     });
 
