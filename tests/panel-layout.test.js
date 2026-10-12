@@ -223,6 +223,26 @@ describe('setupLayoutMode', () => {
         expect(api.getActiveTab()).toBe('request');
     });
 
+    it('opens the Request tab when a Bulk Replay result row is clicked in compact mode', async () => {
+        start();
+        resize({ width: 1400, height: 380 });
+        const bulk = document.getElementById('bulk-replay-pane');
+        bulk.innerHTML = '<table id="bulk-results-table"><tbody><tr><td>row</td></tr></tbody></table>';
+        bulk.style.display = 'flex';
+        await tick();
+        expect(api.getActiveTab()).toBe('bulk');
+        bulk.querySelector('td').click();
+        expect(api.getActiveTab()).toBe('request');
+    });
+
+    it('keeps inactive compact panes rendered instead of display:none', () => {
+        const css = readFileSync('css/panel.css', 'utf8');
+        const rule = css.slice(css.indexOf('.container[data-layout="compact"] .split-view-container > .pane {'));
+        const body = rule.slice(0, rule.indexOf('}'));
+        expect(body).toContain('visibility: hidden');
+        expect(body).not.toContain('display: none');
+    });
+
     it('switches tabs by click and keyboard and keeps hidden pane content', () => {
         start();
         resize({ width: 1400, height: 380 });

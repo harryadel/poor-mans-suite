@@ -255,6 +255,8 @@ export function setupUndoRedo() {
 
     // Update syntax highlighting on blur and save editor state
     elements.rawRequestInput.addEventListener('blur', () => {
+        // An editor that is not rendered reports its text without line breaks; leave it alone.
+        if (typeof elements.rawRequestInput.checkVisibility === 'function' && !elements.rawRequestInput.checkVisibility()) return;
         const content = elements.rawRequestInput.innerText;
         elements.rawRequestInput.innerHTML = highlightHTTP(content);
         

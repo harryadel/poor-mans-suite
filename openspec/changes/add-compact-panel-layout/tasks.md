@@ -9,6 +9,7 @@
 - [x] 2.1 Add the compact tab strip and `data-tab` names to the Request, Response, Chat, and Bulk Replay panes, and style `[data-layout="compact"]` so only the active pane is visible and fills the main area.
 - [x] 2.2 Implement tab switching with the keyboard shortcuts from the design, switch to Response after Send, show the latest status code on the Request tab, and show the Chat and Bulk Replay tabs only while those panes are open.
 - [ ] 2.3 Confirm a streaming chat turn and a running Bulk Replay continue while their tabs are hidden, and that opening Bulk Replay or Chat in compact mode activates its tab.
+- [x] 2.5 Open the Request tab when a Bulk Replay result row is selected, and keep hidden panes rendered so editor text reads keep their line breaks.
 - [x] 2.4 Add tests for tab visibility, switching, the Send-to-Response switch, the status chip, and hidden panes keeping their content.
 
 ## 3. Request List Drawer

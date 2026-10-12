@@ -54,3 +54,19 @@ While a chat-prepared Bulk Replay draft is under review, the Remove controls and
 #### Scenario: Review discarded
 - **WHEN** the user cancels the review
 - **THEN** the restored configuration's position controls are enabled
+
+### Requirement: Reopening with a changed request keeps matching payload settings
+When the Bulk Replay configuration opens from a marked request whose text differs from the saved template, positions whose marked value is still present SHALL keep their payload settings, in order of appearance, and only positions with new values SHALL start empty. When no marked value matches, the configuration SHALL start fresh.
+
+#### Scenario: Request edited outside the positions
+- **WHEN** the user changes a header in a marked request and reopens the configuration
+- **THEN** every position keeps its payload list and number range
+
+#### Scenario: Return to the request after viewing results
+- **WHEN** the user opens a Bulk Replay result, returns to the marked request, and reopens the configuration
+- **THEN** the payload settings entered before the attack are still present
+
+#### Scenario: A new position is added
+- **WHEN** the user marks an additional value and reopens the configuration
+- **THEN** the existing positions keep their settings
+- **AND** the new position starts with an empty payload list

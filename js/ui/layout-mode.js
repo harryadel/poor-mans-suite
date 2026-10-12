@@ -232,6 +232,12 @@ export function setupLayoutMode({ observe = defaultObserve, storage, headerFits 
         activateTab(next);
     }
 
+    // Opening a Bulk Replay result loads it into the editor panes, so show them.
+    panes.bulk?.addEventListener('click', (event) => {
+        if (mode !== 'compact') return;
+        if (event.target.closest('#bulk-results-table tbody tr')) activateTab('request');
+    });
+
     // Hosted panes signal open and close through their inline display, so watch it.
     const paneObservers = [];
     if (typeof MutationObserver === 'function') {

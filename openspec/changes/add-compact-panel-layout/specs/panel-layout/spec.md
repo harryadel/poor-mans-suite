@@ -45,6 +45,15 @@ In the compact layout the Request editor, Response viewer, AI chat, and Bulk Rep
 - **WHEN** the user starts a Bulk Replay attack
 - **THEN** a Bulk Replay tab appears and becomes active
 
+#### Scenario: Open a Bulk Replay result
+- **WHEN** the user selects a result row on the Bulk Replay tab
+- **THEN** the Request tab becomes active showing the request as it was sent
+- **AND** the Response tab shows that result's response
+
+#### Scenario: Hidden editor text stays intact
+- **WHEN** the Request tab is hidden and the request text is saved or read
+- **THEN** the text keeps its line breaks exactly as shown on the Request tab
+
 #### Scenario: Work continues on a hidden tab
 - **WHEN** a chat turn is streaming or a Bulk Replay attack is running and the user activates a different tab
 - **THEN** the streaming or attack continues

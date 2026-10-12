@@ -10,6 +10,8 @@
 - [x] 2.3 Sync the request editor when its text still matches the previous template, and show the empty-positions note with Start disabled when no positions remain.
 - [x] 2.4 Disable the controls during a draft review with an explanatory title.
 
+- [x] 2.5 Carry payload settings over by marked value when the configuration opens from a changed request.
+
 ## 3. Verification
 
 - [x] 3.1 Add configuration UI tests for removing a position, editing a value, editor sync and non-sync, the empty state, reopening without a reset, and the review lock.

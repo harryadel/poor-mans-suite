@@ -782,20 +782,31 @@ export function setupBulkReplay() {
                 state.positionConfigs.length === matches.length;
 
             if (!isSavedTemplate) {
+                // The marked request changed since the last configuration. Keep the payload
+                // settings of every position whose marked value is still present, in order,
+                // so a small edit or a round trip through results does not wipe the setup.
+                const previousConfigs = [...state.positionConfigs];
+                let keptAny = false;
+                const carriedOver = matches.map((match, index) => {
+                    const originalValue = match.replace(/§/g, '');
+                    const previousIndex = previousConfigs.findIndex(config => config && config.originalValue === originalValue);
+                    if (previousIndex === -1) {
+                        return { index, originalValue, type: 'simple-list', list: '', numbers: { from: 1, to: 10, step: 1 } };
+                    }
+                    keptAny = true;
+                    const [previous] = previousConfigs.splice(previousIndex, 1);
+                    return editablePayloadConfig(previous, { index, originalValue });
+                });
                 state.bulkReplayTemplate = content;
-                state.positionConfigs = matches.map((match, index) => ({
-                    index,
-                    originalValue: match.replace(/§/g, ''),
-                    type: 'simple-list',
-                    list: '',
-                    numbers: { from: 1, to: 10, step: 1 }
-                }));
-                state.batteringRamConfig = {
-                    type: 'simple-list',
-                    list: '',
-                    numbers: { from: 1, to: 10, step: 1 }
-                };
-                state.currentAttackType = 'sniper';
+                state.positionConfigs = carriedOver;
+                if (!keptAny) {
+                    state.batteringRamConfig = {
+                        type: 'simple-list',
+                        list: '',
+                        numbers: { from: 1, to: 10, step: 1 }
+                    };
+                    state.currentAttackType = 'sniper';
+                }
             }
             if (currentHasMarkers) {
                 manualConfigurationContext = captureManualConfigurationContext();

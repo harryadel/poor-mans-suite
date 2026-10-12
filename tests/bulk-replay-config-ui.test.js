@@ -353,6 +353,32 @@ describe('Bulk Replay configuration persistence', () => {
         expect(document.querySelector('.position-card .position-value-input').value).toBe('old');
     });
 
+    it('keeps payload settings for unchanged positions when the marked request changes', () => {
+        openModalWithTwoPositions();
+        const [first, second] = document.querySelectorAll('.position-card .payload-list-input');
+        first.value = 'alice'; first.dispatchEvent(new Event('input'));
+        second.value = 'admin'; second.dispatchEvent(new Event('input'));
+        document.getElementById('attack-type').value = 'pitchfork';
+        document.getElementById('attack-type').dispatchEvent(new Event('change'));
+        document.querySelector('.close-modal').click();
+
+        uiMocks.elements.rawRequestInput.innerText = 'GET /login?username=§candidate§&role=§user§&x=§1§ HTTP/1.1\nHost: changed.test\n\n';
+        uiMocks.elements.rawRequestInput.dispatchEvent(new Event('input'));
+        document.getElementById('bulk-replay-btn').click();
+
+        const lists = Array.from(document.querySelectorAll('.position-card .payload-list-input')).map(el => el.value);
+        expect(lists).toEqual(['alice', 'admin', '']);
+        expect(state.positionConfigs.map(c => c.originalValue)).toEqual(['candidate', 'user', '1']);
+        expect(state.currentAttackType).toBe('pitchfork');
+
+        document.querySelector('.close-modal').click();
+        uiMocks.elements.rawRequestInput.innerText = 'GET /login?username=§other§ HTTP/1.1\nHost: example.test\n\n';
+        uiMocks.elements.rawRequestInput.dispatchEvent(new Event('input'));
+        document.getElementById('bulk-replay-btn').click();
+        expect(document.querySelector('.position-card .payload-list-input').value).toBe('');
+        expect(state.currentAttackType).toBe('sniper');
+    });
+
     it('retains, edits, and removes a continuation guard with its matcher', () => {
         setupBulkReplay();
 
