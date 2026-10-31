@@ -211,7 +211,7 @@ If you use a local model (e.g., Ollama) you must allow Chrome extensions to call
 
 Poor Man's Suite can use a local [OpenCode](https://opencode.ai/) server as a gateway to any model already connected in OpenCode.
 
-1. Start OpenCode from a dedicated empty directory on a stable loopback port. A password is strongly recommended:
+1. Start OpenCode from a dedicated empty directory on a stable loopback port. OpenCode 2.x always requires a server password (it prints a random one at startup if you do not set `OPENCODE_SERVER_PASSWORD`); older 1.x servers accept one optionally:
    ```bash
    mkdir -p ~/.local/share/poor-mans-suite/opencode
    cd ~/.local/share/poor-mans-suite/opencode
@@ -231,7 +231,7 @@ Poor Man's Suite can use a local [OpenCode](https://opencode.ai/) server as a ga
    ```
 2. Open Poor Man's Suite Settings and select **OpenCode**.
 3. Poor Man's Suite automatically connects to `http://127.0.0.1:4096` as `opencode` and loads models available from that server configuration.
-4. If your server uses `OPENCODE_SERVER_PASSWORD` or a custom loopback port, enter those advanced connection details and retry, then save.
+4. Enter the server password (required for OpenCode 2.x) and any custom loopback port, retry, then save. Poor Man's Suite detects whether the server speaks the OpenCode 2.x API (under `/api`) or the 1.x API automatically.
 
 OpenCode sessions are kept while their Poor Man's Suite request chat is active and deleted when that chat or request is cleared. All OpenCode tools are disabled for these sessions. OpenCode itself runs locally, but request and response data may still be sent to the cloud provider backing the model you select.
 

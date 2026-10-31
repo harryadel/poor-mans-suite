@@ -44,7 +44,24 @@ export function parseOpenCodeModel(value) {
     };
 }
 
-export function flattenOpenCodeModels(data) {
+export function flattenOpenCodeModels(data, providerList = null) {
+    if (Array.isArray(data?.data)) {
+        // OpenCode 2.x: GET /api/model lists every usable model; /api/provider supplies display names.
+        const providerNames = new Map(
+            (Array.isArray(providerList?.data) ? providerList.data : []).map(provider => [provider.id, provider.name])
+        );
+        return data.data
+            .filter(model => model?.providerID && (model.id || model.modelID) && (!model.type || model.type === 'chat'))
+            .map(model => {
+                const modelId = model.id || model.modelID;
+                return {
+                    id: `${model.providerID}/${modelId}`,
+                    label: `${providerNames.get(model.providerID) || model.providerID} - ${model.name || modelId}`
+                };
+            })
+            .sort((a, b) => a.label.localeCompare(b.label));
+    }
+
     const hasConnectedList = Array.isArray(data?.connected);
     const connected = new Set(Array.isArray(data?.connected) ? data.connected : []);
     const providers = Array.isArray(data?.all)
@@ -123,6 +140,64 @@ function connectionFingerprint(connection) {
     return `${connection.baseUrl}\n${connection.username}\n${connection.password}`;
 }
 
+// OpenCode 2.x serves its web UI at / and the HTTP API under /api; 1.x served the API at /.
+const apiDetections = new Map();
+
+export function clearOpenCodeApiCache() {
+    apiDetections.clear();
+}
+
+function looksLikeHtml(body) {
+    return /^\s*</.test(body || '');
+}
+
+async function probeOpenCodeApi(settings) {
+    try {
+        const info = await requestOpenCode(settings, '/api/info');
+        if (info?.version) return { version: 'v2', server: info };
+    } catch (error) {
+        if (error.status === 401) throw error;
+    }
+
+    const health = await requestOpenCode(settings, '/global/health');
+    if (!health?.healthy) throw new Error('OpenCode server reported that it is unhealthy.');
+    return { version: 'v1', server: health };
+}
+
+function detectOpenCodeApi(settings) {
+    const fingerprint = connectionFingerprint(getConnection(settings));
+    let detection = apiDetections.get(fingerprint);
+    if (!detection) {
+        detection = probeOpenCodeApi(settings);
+        apiDetections.set(fingerprint, detection);
+        detection.catch(() => {
+            if (apiDetections.get(fingerprint) === detection) apiDetections.delete(fingerprint);
+        });
+    }
+    return detection;
+}
+
+function sessionEndpoints(apiVersion, sessionId) {
+    const id = encodeURIComponent(sessionId);
+    if (apiVersion === 'v2') {
+        return {
+            events: '/api/event',
+            session: `/api/session/${id}`,
+            abort: `/api/session/${id}/interrupt`,
+            model: `/api/session/${id}/model`,
+            prompt: `/api/session/${id}/prompt`,
+            permissionReply: requestId => `/api/session/${id}/permission/${encodeURIComponent(requestId)}/reply`
+        };
+    }
+    return {
+        events: '/event',
+        session: `/session/${id}`,
+        abort: `/session/${id}/abort`,
+        prompt: `/session/${id}/prompt_async`,
+        permissionReply: requestId => `/permission/${encodeURIComponent(requestId)}/reply`
+    };
+}
+
 function nextRequestId() {
     return `opencode-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -159,12 +234,16 @@ function requestOpenCode(settings, path, options = {}) {
                 try {
                     resolve(JSON.parse(message.body));
                 } catch (error) {
-                    reject(new Error(`OpenCode returned invalid JSON: ${error.message}`));
+                    reject(new Error(looksLikeHtml(message.body)
+                        ? 'OpenCode returned a web page instead of JSON. Make sure the server URL points at a server started with `opencode serve`.'
+                        : `OpenCode returned invalid JSON: ${error.message}`));
                 }
             } else if (message.type === 'opencode-error') {
                 clearTimeout(timer);
                 requestListeners.delete(requestId);
-                reject(new Error(message.error || 'OpenCode request failed.'));
+                const error = new Error(message.error || 'OpenCode request failed.');
+                if (message.status) error.status = message.status;
+                reject(error);
             }
         });
 
@@ -179,7 +258,7 @@ function requestOpenCode(settings, path, options = {}) {
     });
 }
 
-function openOpenCodeEventStream(settings, onChunk) {
+function openOpenCodeEventStream(settings, eventsPath, onChunk) {
     const requestId = nextRequestId();
     const connection = getConnection(settings);
     let readySettled = false;
@@ -236,7 +315,7 @@ function openOpenCodeEventStream(settings, onChunk) {
             type: 'opencode-request',
             requestId,
             ...connection,
-            path: '/event',
+            path: eventsPath,
             method: 'GET',
             stream: true
         });
@@ -245,11 +324,12 @@ function openOpenCodeEventStream(settings, onChunk) {
     return ready;
 }
 
-function trackSession(settings, sessionId) {
+function trackSession(settings, sessionId, apiVersion) {
     getPort().postMessage({
         type: 'opencode-track-session',
         requestId: nextRequestId(),
         sessionId,
+        apiVersion,
         ...getConnection(settings)
     });
 }
@@ -263,22 +343,37 @@ function untrackSession(sessionId) {
 }
 
 async function createSession(settings, title) {
-    const session = await requestOpenCode(settings, '/session', {
-        method: 'POST',
-        body: {
-            title: title || "Poor Man's Suite investigation",
-            permission: [{ permission: '*', pattern: '*', action: 'deny' }]
-        }
-    });
+    const api = await detectOpenCodeApi(settings);
+    const sessionTitle = title || "Poor Man's Suite investigation";
+    let session;
+    if (api.version === 'v2') {
+        const response = await requestOpenCode(settings, '/api/session', {
+            method: 'POST',
+            body: {
+                title: sessionTitle,
+                permissions: [{ action: '*', resource: '*', effect: 'deny' }]
+            }
+        });
+        session = response?.data;
+    } else {
+        session = await requestOpenCode(settings, '/session', {
+            method: 'POST',
+            body: {
+                title: sessionTitle,
+                permission: [{ permission: '*', pattern: '*', action: 'deny' }]
+            }
+        });
+    }
     if (!session?.id) throw new Error('OpenCode did not return a session ID.');
-    trackSession(settings, session.id);
+    trackSession(settings, session.id, api.version);
     return session.id;
 }
 
 async function deleteSession(settings, sessionId) {
     await abortSession(settings, sessionId);
 
-    await requestOpenCode(settings, `/session/${encodeURIComponent(sessionId)}`, {
+    const api = await detectOpenCodeApi(settings);
+    await requestOpenCode(settings, sessionEndpoints(api.version, sessionId).session, {
         method: 'DELETE'
     });
     untrackSession(sessionId);
@@ -286,7 +381,8 @@ async function deleteSession(settings, sessionId) {
 
 async function abortSession(settings, sessionId) {
     try {
-        await requestOpenCode(settings, `/session/${encodeURIComponent(sessionId)}/abort`, {
+        const api = await detectOpenCodeApi(settings);
+        await requestOpenCode(settings, sessionEndpoints(api.version, sessionId).abort, {
             method: 'POST'
         });
     } catch (error) {
@@ -294,18 +390,26 @@ async function abortSession(settings, sessionId) {
     }
 }
 
-async function denyPermission(settings, permissionId) {
+async function denyPermission(settings, api, sessionId, permissionId) {
     try {
-        await requestOpenCode(settings, `/permission/${encodeURIComponent(permissionId)}/reply`, {
+        await requestOpenCode(settings, sessionEndpoints(api.version, sessionId).permissionReply(permissionId), {
             method: 'POST',
-            body: { reply: 'reject' }
+            body: api.version === 'v2' ? { decision: 'reject' } : { reply: 'reject' }
         });
     } catch (error) {
         // The prompt is rejected regardless; this is best-effort cleanup.
     }
 }
 
+function composePrompt(systemPrompt, userPrompt) {
+    // OpenCode 2.x has no per-prompt system field, so the instructions ride along with the request.
+    if (!systemPrompt) return userPrompt;
+    return `${systemPrompt}\n\n---\n\n${userPrompt}`;
+}
+
 async function runPrompt(settings, sessionId, model, systemPrompt, userPrompt, onUpdate, entry) {
+    const api = await detectOpenCodeApi(settings);
+    const endpoints = sessionEndpoints(api.version, sessionId);
     const textParts = new Map();
     const assistantMessageIds = new Set();
     const pendingParts = new Map();
@@ -336,13 +440,59 @@ async function runPrompt(settings, sessionId, model, systemPrompt, userPrompt, o
         resolveResult(text);
     };
 
+    const emitText = () => onUpdate(Array.from(textParts.values()).join(''));
+
     const acceptPart = part => {
         if (part.type !== 'text' || !assistantMessageIds.has(part.messageID)) return;
         textParts.set(part.id, part.text || '');
-        onUpdate(Array.from(textParts.values()).join(''));
+        emitText();
     };
 
-    const parser = createSSEParser(event => {
+    const rejectPermission = (permissionId, permissionName) => {
+        denyPermission(settings, api, sessionId, permissionId);
+        finish(new Error(`OpenCode unexpectedly requested the "${permissionName}" permission. The request was blocked.`));
+    };
+
+    const handleV2Event = event => {
+        const data = event.data;
+        if (data?.sessionID !== sessionId) return;
+        const textKey = `${data.assistantMessageID}:${data.ordinal}`;
+
+        switch (event.type) {
+            case 'session.execution.started':
+                if (promptSent) promptRunning = true;
+                break;
+            case 'session.text.started':
+                if (promptRunning && !textParts.has(textKey)) textParts.set(textKey, '');
+                break;
+            case 'session.text.delta':
+                if (!promptRunning) break;
+                textParts.set(textKey, `${textParts.get(textKey) || ''}${data.delta || ''}`);
+                emitText();
+                break;
+            case 'session.text.ended':
+                if (!promptRunning || typeof data.text !== 'string') break;
+                textParts.set(textKey, data.text);
+                emitText();
+                break;
+            case 'session.execution.succeeded':
+                if (promptRunning) finish();
+                break;
+            case 'session.execution.failed':
+                finish(new Error(data.error?.message || 'OpenCode model request failed.'));
+                break;
+            case 'session.execution.interrupted':
+                finish(new Error('OpenCode interrupted the prompt.'));
+                break;
+            case 'permission.asked':
+                rejectPermission(data.id, data.action);
+                break;
+            default:
+                break;
+        }
+    };
+
+    const handleV1Event = event => {
         if (event.type === 'message.updated') {
             const info = event.properties?.info;
             if (info?.sessionID !== sessionId || info.role !== 'assistant' || info.summary === true) return;
@@ -371,8 +521,7 @@ async function runPrompt(settings, sessionId, model, systemPrompt, userPrompt, o
         } else if (event.type === 'permission.asked') {
             const permission = event.properties;
             if (permission?.sessionID !== sessionId) return;
-            denyPermission(settings, permission.id);
-            finish(new Error(`OpenCode unexpectedly requested the "${permission.permission}" permission. The request was blocked.`));
+            rejectPermission(permission.id, permission.permission);
         } else if (event.type === 'session.error' && event.properties?.sessionID === sessionId) {
             finish(new Error(event.properties.error?.data?.message || 'OpenCode session failed.'));
         } else if (event.type === 'session.idle' && event.properties?.sessionID === sessionId && promptRunning) {
@@ -392,9 +541,11 @@ async function runPrompt(settings, sessionId, model, systemPrompt, userPrompt, o
         ) {
             finish();
         }
-    });
+    };
 
-    const stream = await openOpenCodeEventStream(settings, chunk => parser.feed(chunk));
+    const parser = createSSEParser(api.version === 'v2' ? handleV2Event : handleV1Event);
+
+    const stream = await openOpenCodeEventStream(settings, endpoints.events, chunk => parser.feed(chunk));
     entry.activeCancel = () => {
         finish(new Error('OpenCode request was cancelled.'));
         stream.cancel();
@@ -405,17 +556,30 @@ async function runPrompt(settings, sessionId, model, systemPrompt, userPrompt, o
     );
     try {
         const selectedModel = parseOpenCodeModel(model);
-        promptSent = true;
-        await requestOpenCode(settings, `/session/${encodeURIComponent(sessionId)}/prompt_async`, {
-            method: 'POST',
-            timeoutMs: REQUEST_TIMEOUT_MS,
-            body: {
-                model: selectedModel,
-                system: systemPrompt,
-                tools: { '*': false },
-                parts: [{ type: 'text', text: userPrompt }]
-            }
-        });
+        if (api.version === 'v2') {
+            await requestOpenCode(settings, endpoints.model, {
+                method: 'POST',
+                body: { model: { providerID: selectedModel.providerID, id: selectedModel.modelID } }
+            });
+            promptSent = true;
+            await requestOpenCode(settings, endpoints.prompt, {
+                method: 'POST',
+                timeoutMs: REQUEST_TIMEOUT_MS,
+                body: { text: composePrompt(systemPrompt, userPrompt) }
+            });
+        } else {
+            promptSent = true;
+            await requestOpenCode(settings, endpoints.prompt, {
+                method: 'POST',
+                timeoutMs: REQUEST_TIMEOUT_MS,
+                body: {
+                    model: selectedModel,
+                    system: systemPrompt,
+                    tools: { '*': false },
+                    parts: [{ type: 'text', text: userPrompt }]
+                }
+            });
+        }
 
         const timeout = setTimeout(() => finish(new Error('OpenCode prompt timed out.')), PROMPT_TIMEOUT_MS);
         try {
@@ -491,14 +655,22 @@ async function getConversationSession(settings, conversationKey, title, signal) 
 }
 
 export async function testOpenCodeConnection(settings) {
-    const health = await requestOpenCode(settings, '/global/health');
-    if (!health?.healthy) throw new Error('OpenCode server reported that it is unhealthy.');
-    return health;
+    // Always re-probe so a server upgraded or swapped behind the same URL is picked up.
+    apiDetections.delete(connectionFingerprint(getConnection(settings)));
+    const api = await detectOpenCodeApi(settings);
+    return { healthy: true, version: api.server?.version, api: api.version };
 }
 
 export async function fetchOpenCodeModels(settings) {
-    const data = await requestOpenCode(settings, '/config/providers');
-    return flattenOpenCodeModels(data);
+    const api = await detectOpenCodeApi(settings);
+    if (api.version === 'v2') {
+        const [models, providers] = await Promise.all([
+            requestOpenCode(settings, '/api/model'),
+            requestOpenCode(settings, '/api/provider').catch(() => null)
+        ]);
+        return flattenOpenCodeModels(models, providers);
+    }
+    return flattenOpenCodeModels(await requestOpenCode(settings, '/config/providers'));
 }
 
 export async function streamFromOpenCode(settings, model, systemPrompt, userPrompt, onUpdate, options = {}) {

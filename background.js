@@ -45,10 +45,20 @@ function getOpenCodeHeaders(msg, stream = false) {
     return headers;
 }
 
+// OpenCode 2.x serves its API under /api (and interrupts instead of aborts); 1.x served it at /.
+function getOpenCodeSessionPaths(apiVersion, sessionId) {
+    const id = encodeURIComponent(sessionId);
+    if (apiVersion === 'v2') {
+        return { session: `/api/session/${id}`, abort: `/api/session/${id}/interrupt` };
+    }
+    return { session: `/session/${id}`, abort: `/session/${id}/abort` };
+}
+
 async function deleteOpenCodeSessionDirect(settings, sessionId) {
     const msg = { ...settings };
-    const abortTarget = getOpenCodeTarget(settings.baseUrl, `/session/${encodeURIComponent(sessionId)}/abort`);
-    const deleteTarget = getOpenCodeTarget(settings.baseUrl, `/session/${encodeURIComponent(sessionId)}`);
+    const paths = getOpenCodeSessionPaths(settings.apiVersion, sessionId);
+    const abortTarget = getOpenCodeTarget(settings.baseUrl, paths.abort);
+    const deleteTarget = getOpenCodeTarget(settings.baseUrl, paths.session);
 
     try {
         await fetch(abortTarget.href, {
@@ -136,12 +146,17 @@ async function getOpenCodeError(response) {
     const text = await response.text();
     if (!text.trim()) return `OpenCode request failed with status ${response.status}`;
 
+    let message;
     try {
         const data = JSON.parse(text);
-        return data.error?.data?.message || data.error?.message || data.message || text;
+        message = data.error?.data?.message || data.error?.message || data.message || text;
     } catch (error) {
-        return text.length > 300 ? `${text.slice(0, 300)}...` : text;
+        message = text.length > 300 ? `${text.slice(0, 300)}...` : text;
     }
+    if (response.status === 401) {
+        return `${message}. OpenCode rejected the username or password. OpenCode 2.x always requires the server password it prints at startup (or the OPENCODE_SERVER_PASSWORD you set).`;
+    }
+    return message;
 }
 
 async function handleOpenCodeRequest(port, msg) {
@@ -173,7 +188,9 @@ async function handleOpenCodeRequest(port, msg) {
         });
 
         if (!response.ok) {
-            throw new Error(await getOpenCodeError(response));
+            const error = new Error(await getOpenCodeError(response));
+            error.status = response.status;
+            throw error;
         }
 
         if (!msg.stream) {
@@ -208,7 +225,7 @@ async function handleOpenCodeRequest(port, msg) {
     } catch (error) {
         const message = error.name === 'AbortError' ? 'OpenCode request was cancelled.' : error.message;
         try {
-            port.postMessage({ type: 'opencode-error', requestId, error: message });
+            port.postMessage({ type: 'opencode-error', requestId, error: message, status: error.status });
         } catch (postError) {
             // The panel disconnected while the request was active.
         }
@@ -218,8 +235,9 @@ async function handleOpenCodeRequest(port, msg) {
 }
 
 function trackOpenCodeSession(port, msg) {
+    const apiVersion = msg.apiVersion === 'v2' ? 'v2' : 'v1';
     // Validate before retaining connection details for disconnect cleanup.
-    getOpenCodeTarget(msg.baseUrl, `/session/${encodeURIComponent(msg.sessionId)}`);
+    getOpenCodeTarget(msg.baseUrl, getOpenCodeSessionPaths(apiVersion, msg.sessionId).session);
     let sessions = opencodeSessionsByPort.get(port);
     if (!sessions) {
         sessions = new Map();
@@ -228,7 +246,8 @@ function trackOpenCodeSession(port, msg) {
     const settings = {
         baseUrl: msg.baseUrl,
         username: msg.username || 'opencode',
-        password: msg.password || ''
+        password: msg.password || '',
+        apiVersion
     };
     sessions.set(msg.sessionId, settings);
     persistOpenCodeSession(msg.sessionId, settings);
